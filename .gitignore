@@ -50,6 +50,7 @@ rsconnect/
 
 # Another
 *.docx
+*.pdf
 
 # Large files
 Data/
