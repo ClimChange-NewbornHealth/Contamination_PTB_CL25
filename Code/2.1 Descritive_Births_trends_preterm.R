@@ -12,23 +12,14 @@ data_out <- "Data/Output/"
 ## Birth data ---- 
 
 # ID file load
-file <- "births_1992_2020.RData"
+file <- "births_2010_2020.RData"
 
 # Open data in R
 load(paste0(data_out, file)) 
 
-glimpse(births)
+glimpse(births) # 727290
 
 ### 1. Fixed cohort bias  -----
-
-# Floor 
-table(births$year_week1) 
-
-# births_rm1991 <- births %>% 
-#   filter(year_week1>=1992) # Loss 77980 Introduce bias 
-
-length(unique(births$id)) # 2,988,646,213
-# Ceiling date_ends_week_gest 2020-12-31 
 
 weeks <- births %>% 
   group_by(date_start_week_gest, date_ends_week_gest, weeks) %>% 
@@ -79,7 +70,7 @@ table %>%
   geom_line(color="#08519c") +
   geom_point(color="#08519c") +
   facet_wrap(~preterm, ncol = 2, scales = "free") +
-  scale_x_continuous(breaks = seq(1992, 2020, by=4)) +
+  scale_x_continuous(breaks = seq(2010, 2020, by=1)) +
   labs(y ="Prevalence (per 1.000)", x=NULL) +
   theme_classic() +
   theme(plot.title = element_text(hjust = 0.5))
@@ -92,20 +83,4 @@ ggsave(filename = paste0("Output/", "Descriptives/", "Preterm_trends", ".png"), 
        scaling = 0.90,
        device = ragg::agg_png)
 
-# Podrían haber nacido en el úlimo mes 30/04, pero no última semana -> fecha de cohorte 07/04. Todo el resto fuera. 
-#rm(births_rm1991)
 
-### Save new births data ----
-glimpse(births)
-
-births_1020 <- births |> 
-  filter(
-    date_start_week_gest >= as.Date("2010-01-01") &
-    date_ends_week_gest   <= as.Date("2020-12-31")
-  )
-
-glimpse(births_1020)
-summary(births_1020$date_start_week_gest)
-summary(births_1020$date_ends_week_gest)
-
-save(births_1020, file=paste0(data_out, "births_2010_2020", ".RData"))

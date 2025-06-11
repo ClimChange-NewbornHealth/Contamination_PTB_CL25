@@ -11,45 +11,31 @@ data_out <- "Data/Output/"
 
 ## Data ---- 
 
-exp_data <- rio::import(paste0(data_out, "series_births_exposition_pm25_o3_kriging_idw", ".RData")) %>% drop_na()
+exp_data <- rio::import(paste0(data_out, "series_births_exposition_pm25_o3_kriging_idw", ".RData")) |> drop_na()
 summary(exp_data)
-glimpse(exp_data)
+glimpse(exp_data) # 713.918
 
-exposure_vars <- c(
-  "pm25_krg_full", "pm25_krg_30", "pm25_krg_4",
-  "o3_krg_full", "o3_krg_30", "o3_krg_4",
-  "pm25_idw_full", "pm25_idw_30", "pm25_idw_4",
-  "o3_idw_full",   "o3_idw_30",   "o3_idw_4"
-)
+exp_vars <- exp_data |> select(pm25_krg_full:o3_idw_4_10) |> colnames()
+exp_vars
 
 dependent_vars <- c("birth_preterm", "birth_very_preterm", "birth_moderately_preterm", 
                     "birth_late_preterm") # , "birth_term", "birth_posterm"
 
-control_vars <- c("weeks", "sex", "age_group_mom", "educ_group_mom", "job_group_mom",
+control_vars <- c("weeks", "sex", 
+    "age_group_mom", "educ_group_mom", "job_group_mom",
     "age_group_dad", "educ_group_dad", "job_group_dad",
-    "year_nac", "vulnerability")
+    "month_week1", "year_week1", "vulnerability")
 
-
-exp_data <- exp_data %>% 
+exp_data <- exp_data |> 
   dplyr::select(all_of(c("id", dependent_vars, control_vars, exposure_vars
-  ))) |> 
-  mutate(across(all_of(exposure_vars), ~ .x / 10, .names = "{.col}_10"))
-
-exp_data$vulnerability <- droplevels(
-  exp_data$vulnerability[exp_data$vulnerability != "Alta"]
-)
-
-glimpse(exp_data)
-
-exp_vars <- exp_data |> select(pm25_krg_full:o3_idw_4_10) |> colnames()
-exp_vars
+  )))
 
 ## HR COX Models ---- 
 fit_cox_model <- function(dependent, predictor, data) {
   formula <- as.formula(paste("Surv(weeks, ", dependent, ") ~ ", predictor, 
                               "+ sex + age_group_mom + educ_group_mom + job_group_mom +",
                               "age_group_dad + educ_group_dad + job_group_dad +",
-                              "factor(year_nac) + vulnerability"))
+                              "factor(month_week1) + factor(year_week1) + vulnerability"))
   
   # Ajuste del modelo de Cox usando el argumento `data`
   model_fit <- coxph(formula, data = data)
@@ -72,7 +58,7 @@ fit_cox_model <- function(dependent, predictor, data) {
 # Iterar sobre las combinaciones de dependientes y predictores
 combinations <- expand.grid(dependent_vars, exp_vars, stringsAsFactors = FALSE)
 
-plan(multisession, workers = parallel::detectCores() - 6)
+plan(multisession, workers = parallel::detectCores() - 4)
 options(future.globals.maxSize = 1.5 * 1024^3)  # 1.5 GB
 
 tic()
@@ -82,7 +68,7 @@ results_list <- future_lapply(seq_len(nrow(combinations)), function(i) {
   fit_cox_model(dep_var, exp_var, data=exp_data)
 })
 toc() # time: 1333.067 sec elapsed, 22.21778 min 
-
+beepr::beep(8)
 plan(sequential)
 
 # Extract results

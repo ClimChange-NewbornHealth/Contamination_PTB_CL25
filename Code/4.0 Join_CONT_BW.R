@@ -15,7 +15,14 @@ data_sovi <- "Data/Input/SOVI/"
 
 # Exposure  
 exp <- rio::import(paste0(data_out, "series_exposition_pm25_o3_kriging_idw", ".RData"))
+exp2 <- rio::import(paste0(data_out, "series_exposition_pm25_o3_kriging_idw_old", ".RData"))
+
 glimpse(exp)
+glimpse(exp2)
+
+summary(exp)
+summary(exp2)
+
 length(unique(exp$com))
 
 # BW
@@ -27,7 +34,7 @@ setdiff(unique(exp$name_com), unique(bw_data$name_com))
 setdiff(unique(bw_data$name_com), unique(exp$name_com))
 
 # Filter data only municipality in exposure
-bw_data <- bw_data %>% filter(com %in% unique(exp$com)) # 776299
+bw_data <- bw_data %>% filter(com %in% unique(exp$com)) # 727290
 
 # Add vulnerability data 
 sovi <- rio::import(paste0(data_sovi, "sovi_datasets", ".RData")) %>% 
@@ -47,7 +54,7 @@ glimpse(exp)
 glimpse(sovi)
 
 exp_j <- exp |> 
-  select(id, o3_krg_full:o3_idw_4)
+  select(id, pm25_krg_full:o3_idw_t3_iqr)
 
 glimpse(exp_j)
 
@@ -55,6 +62,19 @@ bw_data_join <- bw_data |>
   left_join(exp_j, by="id") |> 
   left_join(sovi, by="com") |> 
   relocate(c("sovi", "vulnerability"), .before = "birth_preterm")
+
+glimpse(bw_data_join)
+
+bw_data_join$vulnerability <- droplevels(
+  bw_data_join$vulnerability[bw_data_join$vulnerability != "Alta"]
+)
+
+## Exposure vars ----
+
+exposure_vars <- colnames(bw_data_join)[34:81]
+
+bw_data_join <- bw_data_join |> 
+  mutate(across(all_of(exposure_vars), ~ .x / 10, .names = "{.col}_10"))
 
 glimpse(bw_data_join)
 
