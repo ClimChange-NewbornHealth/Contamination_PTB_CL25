@@ -15,7 +15,7 @@ exp_data <- rio::import(paste0(data_out, "series_births_exposition_pm25_o3_krigi
 summary(exp_data)
 glimpse(exp_data) # 713.918
 
-exp_vars <- exp_data |> select(pm25_krg_full:o3_idw_4_10) |> colnames()
+exp_vars <- exp_data |> select(pm25_krg_full_10:o3_idw_t3_iqr_10) |> colnames()
 exp_vars
 
 dependent_vars <- c("birth_preterm", "birth_very_preterm", "birth_moderately_preterm", 
@@ -27,7 +27,7 @@ control_vars <- c("weeks", "sex",
     "month_week1", "year_week1", "vulnerability")
 
 exp_data <- exp_data |> 
-  dplyr::select(all_of(c("id", dependent_vars, control_vars, exposure_vars
+  dplyr::select(all_of(c("id",  dependent_vars, control_vars, exp_vars
   )))
 
 ## HR COX Models ---- 
@@ -42,12 +42,6 @@ fit_cox_model <- function(dependent, predictor, data) {
   
   # Extraer resultados con tidy
   results <- broom::tidy(model_fit, exponentiate = TRUE, conf.int = TRUE, conf.level = 0.95) %>%
-    mutate(estimate = round(estimate, 3), 
-           std.error = round(std.error, 3),
-           statistic = round(statistic, 3),
-           p.value = round(p.value, 3),
-           conf.low = round(conf.low, 3),
-           conf.high = round(conf.high, 3)) %>%
     select(term, estimate, std.error, statistic, p.value, conf.low, conf.high) %>%
     mutate(dependent_var = dependent, predictor = predictor)  # Añadir columnas de identificación
   return(results)
@@ -67,7 +61,7 @@ results_list <- future_lapply(seq_len(nrow(combinations)), function(i) {
   exp_var <- combinations[i, 2]
   fit_cox_model(dep_var, exp_var, data=exp_data)
 })
-toc() # time: 1333.067 sec elapsed, 22.21778 min 
+toc() # time: 
 beepr::beep(8)
 plan(sequential)
 
@@ -81,188 +75,146 @@ results_cox <- rio::import(paste0("Output/", "Models/", "Cox_models_exp", ".xlsx
 ## Plots with Exposure Effects COX Models ---- 
 
 results_filtered <- results_cox %>%
-  filter(term %in% c(exp_vars), 
-    dependent_var %in% dependent_vars)
+  filter(term %in% c(exp_vars))
 
-plots <- list()
+results_filtered <- results_filtered |> 
+  mutate(estimate = round(estimate, 4), 
+           std.error = round(std.error, 3),
+           statistic = round(statistic, 3),
+           p.value = round(p.value, 3),
+           conf.low = round(conf.low, 4),
+           conf.high = round(conf.high, 4)) 
 
-for (dep_var in dependent_vars) {
-  # 1. Filtrar resultados para esta variable dependiente
-  data_subset <- results_filtered %>%
-    filter(dependent_var == dep_var) %>%
-    # 2. Extraer duración y crear etiqueta si tu dataframe tiene un término similar
-    #    (si no necesitas duration_label, puedes omitir todo este bloque)
-    mutate(
-      duration = str_extract(term, "\\d+d"),
-      duration_label = case_when(
-        duration == "2d" ~ "2 days",
-        duration == "3d" ~ "3 days",
-        duration == "4d" ~ "4 or more days",
-        TRUE ~ NA_character_
-      ),
-      duration_label = factor(duration_label,
-                              levels = c("2 days", "3 days", "4 or more days"))
-    ) %>%
-    # 3. Filtrar solo los términos que estén en exp_vars
-    filter(term %in% exp_vars) %>%
-    # 4. Factorizar term para ordenarlas y asignarles etiquetas más legibles
-    mutate(
-      term = factor(term, levels = exp_vars, labels = {
-        # Función auxiliar inline para transformar cada nombre en algo legible:
-        make_label <- function(x) {
-          x %>%
-            str_replace_all("^pm25", "PM25") %>%
-            str_replace_all("^o3",   "O3") %>%
-            str_replace_all("_krg_", " Kriging ") %>%
-            str_replace_all("_idw_", " IDW ") %>%
-            str_replace_all("_full", " (full)") %>%
-            str_replace_all("_30",   " (30-day)") %>%
-            str_replace_all("_4(?=[_10]|$)", " (4-day)") %>% 
-            str_replace_all("_10",   " x 10u")
-        }
-        sapply(exp_vars, make_label)
-      })
-    )
+exp_vars <- unique(results_filtered$term)
 
-  # 5. Definir posiciones y límites en x según dep_var (ajústalos si cambian)
-  text_x_position <- 1.3
-  x_limits <- c(0.5, 1.4)
+plot_data <- results_filtered %>%
+  filter(term %in% exp_vars) %>%
+  mutate(
+    # Kriging vs IDW
+    method = case_when(
+      str_detect(term, "_krg_") ~ "Kriging",
+      str_detect(term, "_idw_") ~ "IDW"
+    ) %>% factor(levels = c("Kriging","IDW")),
+    # PM2.5 vs Ozone
+    pollutant = case_when(
+      str_detect(term, "^pm25") ~ "PM2.5",
+      str_detect(term, "^o3")   ~ "Ozone"
+    ),
+    # Ventana / trimestre
+    period = case_when(
+      str_detect(term, "_4_")      ~ "4-day",
+      str_detect(term, "_30")      ~ "30-day",
+      str_detect(term, "_t1_")     ~ "T1",
+      str_detect(term, "_t2_")     ~ "T2",
+      str_detect(term, "_t3_")     ~ "T3",
+      str_detect(term, "_full")    ~ "Full"
+    ) %>% factor(levels = c("4-day","30-day","T1","T2","T3","Full")),
+    # Media vs IQR
+    is_iqr = str_detect(term, "_iqr_"),
+    # Etiqueta Y y orden estricto
+    metric = paste0(period, if_else(is_iqr, " IQR", "")) %>%
+      factor(levels = c(
+        # medias
+        "4-day","30-day","T1","T2","T3","Full",
+        # IQR  
+        "4-day IQR","30-day IQR","T1 IQR","T2 IQR","T3 IQR","Full IQR"
+      ))
+  )
 
-  # 6. Construir el gráfico con ggplot2
-  p <- ggplot(data_subset, aes(x = estimate, y = term, color = duration_label)) +
-    geom_point(size = 3, shape = 15) +
-    geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2) +
-    # Líneas horizontales como separadores visuales (opcional)
-    geom_hline(yintercept = seq_len(length(exp_vars)) - 0.5, color = "gray", size = 0.2) +
-    geom_vline(xintercept = 1, linetype = "dashed", color = "red", alpha = 0.5) +
-    scale_colour_manual(
-      name = "Duration HW:",
-      values = c("#e59866", "#d35400", "#873600"),
-      na.translate = FALSE
-    ) +
-    scale_x_continuous(limits = x_limits) +
+# Design the plot
+
+make_hr_plot <- function(df, poll, outc) {
+  ggplot(df, aes(x = estimate, y = metric)) +
+    geom_point(shape = 15, size = 2, colour = "black") +
+    geom_errorbarh(aes(xmin = conf.low, xmax = conf.high),
+                   height = 0.2, colour = "black") +
+    geom_vline(xintercept = 1, linetype = "dashed", colour = "red", alpha = 0.5) +
     geom_text(
       aes(
-        x = text_x_position,
-        label = paste0(
-          format(round(estimate, 3), nsmall = 2), " (",
-          format(round(conf.low, 3), nsmall = 2), " - ",
-          format(round(conf.high, 3), nsmall = 2), ")"
-        )
+        x     = 2.25,
+        label = sprintf("%.2f (%.2f–%.2f)", estimate, conf.low, conf.high)
       ),
-      position = position_dodge(width = 0.75),
-      size = 3,
-      show.legend = FALSE
+      hjust = 1.02, size = 3, colour = "black"
     ) +
+    facet_wrap(~ method,
+               ncol = 2,
+               labeller = labeller(method = c(Kriging = "Kriging",
+                                              IDW     = "IDW")),
+               strip.position = "top") +
+    scale_x_continuous(limits = c(0, 2.25), expand = c(0, 0)) +
     labs(
-      title = paste0("Hazard Ratios para ", dep_var),
-      #subtitle = "Variables de exposición (por método)",
-      x = "HR (95% CI)",
-      y = "Métrica de exposición"
+      title = paste0("HR for ", outc, " — ", poll),
+      x     = "HR (95% CI)",
+      y     = NULL
     ) +
     theme_light() +
     theme(
-      panel.grid = element_blank(),
-      legend.position = "top",
-      legend.text = element_text(size = 11),
-      axis.text.y = element_text(size = 9)
+      panel.grid       = element_blank(),
+      strip.background = element_rect(fill = "white"),
+      strip.text       = element_text(size = 11, color = "black", hjust=0),
+      axis.text.y      = element_text(size = 9),
+      axis.ticks.y     = element_blank(),
+      legend.position  = "none"
     )
-
-  plots[[dep_var]] <- p
 }
 
-# Save plots
+plots_list <- vector("list", length = length(unique(plot_data$dependent_var)) * 2)
 
-#plots$birth_preterm + labs(title = "A. Preterm (<37 weeks) last week")
-#plots$birth_late_preterm + labs(title = "B. Late Preterm (34-37 weeks)")
-#plots$birth_moderately_preterm + labs(title = "C. Moderately Preterm (32-33 weeks)")
-#plots$birth_very_preterm + labs(title = "D. Very Preterm (28-32 weeks)")
+names(plots_list) <- expand.grid(
+  outcome   = unique(plot_data$dependent_var),
+  pollutant = c("PM2.5","Ozone"),
+  stringsAsFactors = FALSE
+) %>%
+  transmute(name = paste0(outcome, "_", pollutant)) %>%
+  pull(name)
 
-ggsave(plots$birth_preterm + labs(title = "A. Preterm (<37 weeks)"),
-       filename = paste0("Output/", "Models/", "PTB_COX", ".png"), # "Preterm_trendsrm1991"
-       res = 300,
-       width = 20,
-       height = 15,
-       units = 'cm',
-       scaling = 0.90,
-       device = ragg::agg_png)
+i <- 1
+for (outcome in unique(plot_data$dependent_var)) {
+  for (poll in c("PM2.5","Ozone")) {
+    df_sub <- filter(plot_data, dependent_var == outcome, pollutant == poll)
+    key    <- paste0(outcome, "_", poll)
+    plots_list[[key]] <- make_hr_plot(df_sub, poll, outcome)
+    i <- i + 1
+  }
+}
 
-ggsave(plots$birth_late_preterm + labs(title = "B. Late Preterm (34-37 weeks)"),
-       filename = paste0("Output/", "Models/", "PTB_late_COX", ".png"), # "Preterm_trendsrm1991"
-       res = 300,
-       width = 15,
-       height = 15,
-       units = 'cm',
-       scaling = 1,
-       device = ragg::agg_png)
-
-ggsave(plots$birth_moderately_preterm + labs(title = "C. Moderately Preterm (32-33 weeks)"),
-  filename = paste0("Output/", "Models/", "PTB_moderate_COX", ".png"), # "Preterm_trendsrm1991"
-  res = 300,
-  width = 20,
-  height = 15,
-  units = 'cm',
-  scaling = 0.90,
-  device = ragg::agg_png)
-
-ggsave(plots$birth_very_preterm + labs(title = "D. Very Preterm (28-32 weeks)"),
-  filename = paste0("Output/", "Models/", "PTB_very_COX", ".png"), # "Preterm_trendsrm1991"
-  res = 300,
-  width = 20,
-  height = 15,
-  units = 'cm',
-  scaling = 0.90,
-  device = ragg::agg_png)
-
-
-#  Save all plots
-
+# Save plot 
 plots_save <- ggarrange(
-  plots$birth_preterm + labs(title = "A. Preterm (<37 weeks)"),
-  plots$birth_late_preterm + labs(title = "B. Late Preterm (34-37 weeks)"),
-  plots$birth_moderately_preterm + labs(title = "C. Moderately Preterm (32-33 weeks)"),
-  plots$birth_very_preterm + labs(title = "D. Very Preterm (28-32 weeks)"),
-  ncol=2, nrow=2, 
+  plots_list$birth_preterm_PM2.5 + labs(title = "HR Preterm vs PM2.5"), 
+  plots_list$birth_preterm_Ozone + labs(title = "HR Preterm vs Ozone"),
+  ncol=2, nrow=1, 
   common.legend = TRUE
 )
 
+plots_save
+
 ggsave(plots_save,
-  filename = paste0("Output/", "Models/", "PTB_COX_SUP", ".png"), 
+  filename = paste0("Output/", "Models/", "PTB_COX_PM25_O3", ".png"), 
   res = 300,
   width = 40,
-  height = 35,
+  height = 20,
   units = 'cm',
   scaling = 1.2,
   device = ragg::agg_png)
 
-# Table with effects
 
-table_models <- results_filtered %>% 
-  mutate(HR=paste0(round(estimate, 3), " (", 
-                   round(conf.low, 3), "; ",
-                   round(conf.high, 3), ")" 
-                  )) %>% 
-  select(dependent_var, term, HR) %>% 
-  pivot_wider(names_from = dependent_var, 
-              values_from = HR) %>% 
-  mutate(term = factor(term,
-                        levels = c("HW_30C_2d_bin", "HW_30C_3d_bin", "HW_30C_4d_bin", 
-                                    "HW_p90_2d_bin", "HW_p90_3d_bin", "HW_p90_4d_bin", 
-                                    "HW_p95_2d_bin", "HW_p95_3d_bin", "HW_p95_4d_bin",
-                                    "HW_p99_2d_bin", "HW_p99_3d_bin", "HW_p99_4d_bin",
-                                    "HW_EHF_TAD_2d_bin", "HW_EHF_TAD_3d_bin", "HW_EHF_TAD_4d_bin"
-                                  ),
-                         labels = c("HW-30ºC 2D", "HW-30ºC 3D", "HW-30ºC 4D",
-                                    "HW-P90 2D", "HW-P90 3D", "HW-P90 4D",
-                                    "HW-P95 2D", "HW-P95 3D", "HW-P95 4D",
-                                    "HW-P99 2D", "HW-P99 3D", "HW-P99 4D",
-                                    "HW-EHF 2D", "HW-EHF 3D", "HW-EHF 4D")))
 
-colnames(table_models) <- c("HR Definition", 
-                            "Preterm (<37)", 
-                            "Very Preterm (28-32)", 
-                            "Moderate Preterm (32-33)",
-                            "Late Preterm (34-37)")
+ggsave(plots_list$birth_preterm_Ozone + labs(title = "HR Preterm vs Ozone"),, 
+  filename = paste0("Output/", "Models/", "PTB_COX_O3", ".png"), 
+  res = 300,
+  width = 40,
+  height = 20,
+  units = 'cm',
+  scaling = 1.2,
+  device = ragg::agg_png)
 
-writexl::write_xlsx(table_models, path =  paste0("Output/", "Models/", "Table_COX_lw", ".xlsx"))
+ggsave(plots_list$birth_preterm_PM2.5 + labs(title = "HR Preterm vs PM2.5"), 
+  filename = paste0("Output/", "Models/", "PTB_COX_PM25", ".png"), 
+  res = 300,
+  width = 40,
+  height = 20,
+  units = 'cm',
+  scaling = 1.2,
+  device = ragg::agg_png)
+
 
