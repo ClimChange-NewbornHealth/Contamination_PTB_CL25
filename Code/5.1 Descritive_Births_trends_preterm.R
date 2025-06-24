@@ -12,12 +12,15 @@ data_out <- "Data/Output/"
 ## Birth data ---- 
 
 # ID file load
-file <- "births_2010_2020.RData"
+file <- "series_births_exposition_pm25_o3_kriging_idw.RData"
 
 # Open data in R
 load(paste0(data_out, file)) 
 
-glimpse(births) # 727290
+glimpse(bw_data_join) # 713918
+
+births <- bw_data_join
+rm(bw_data_join)
 
 ### 1. Fixed cohort bias  -----
 
@@ -72,10 +75,17 @@ table %>%
   facet_wrap(~preterm, ncol = 2, scales = "free") +
   scale_x_continuous(breaks = seq(2010, 2020, by=1)) +
   labs(y ="Prevalence (per 1.000)", x=NULL) +
-  theme_classic() +
-  theme(plot.title = element_text(hjust = 0.5))
+  theme_light() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    panel.grid       = element_blank(),
+    strip.background = element_rect(fill = "white"),
+    strip.text       = element_text(size = 11, color = "black", hjust=0),
+    axis.text.y      = element_text(size = 9),
+    axis.ticks.y     = element_blank()
+  )
 
-ggsave(filename = paste0("Output/", "Descriptives/", "Preterm_trends", ".png"), # "Preterm_trendsrm1991"
+ggsave(filename = paste0("Output/", "Descriptives/", "Preterm_trends_2010_2020", ".png"), # "Preterm_trendsrm1991"
        res = 300,
        width = 20,
        height = 12,

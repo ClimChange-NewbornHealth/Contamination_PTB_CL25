@@ -15,7 +15,16 @@ exp_data <- rio::import(paste0(data_out, "series_births_exposition_pm25_o3_krigi
 summary(exp_data)
 glimpse(exp_data) # 713.918
 
-exp_vars <- exp_data |> select(pm25_krg_full_10:o3_idw_t3_iqr_10) |> colnames()
+exp_vars <- exp_data |> select(c(
+  "pm25_krg_full_10":"o3_idw_full_10",  
+  "pm25_krg_30_10":"o3_idw_30_10",
+  "pm25_krg_4_10":"o3_idw_4_10",
+  "pm25_krg_t1_10":"o3_idw_t3_10",
+  "pm25_krg_full_iqr":"o3_idw_full_iqr",
+  "pm25_krg_30_iqr":"o3_idw_30_iqr",
+  "pm25_krg_4_iqr":"o3_idw_4_iqr",
+  "pm25_krg_t1_iqr":"o3_idw_t3_iqr" 
+)) |> colnames()
 exp_vars
 
 dependent_vars <- c("birth_preterm", "birth_very_preterm", "birth_moderately_preterm", 
@@ -32,6 +41,7 @@ exp_data <- exp_data |>
 
 ## HR COX Models ---- 
 fit_cox_model <- function(dependent, predictor, data) {
+
   formula <- as.formula(paste("Surv(weeks, ", dependent, ") ~ ", predictor, 
                               "+ sex + age_group_mom + educ_group_mom + job_group_mom +",
                               "age_group_dad + educ_group_dad + job_group_dad +",
@@ -94,7 +104,7 @@ plot_data <- results_filtered %>%
     method = case_when(
       str_detect(term, "_krg_") ~ "Kriging",
       str_detect(term, "_idw_") ~ "IDW"
-    ) %>% factor(levels = c("Kriging","IDW")),
+    ) %>% factor(levels = c("Kriging", "IDW")),
     # PM2.5 vs Ozone
     pollutant = case_when(
       str_detect(term, "^pm25") ~ "PM2.5",
@@ -110,7 +120,7 @@ plot_data <- results_filtered %>%
       str_detect(term, "_full")    ~ "Full"
     ) %>% factor(levels = c("4-day","30-day","T1","T2","T3","Full")),
     # Media vs IQR
-    is_iqr = str_detect(term, "_iqr_"),
+    is_iqr = str_detect(term, "_iqr"),
     # Etiqueta Y y orden estricto
     metric = paste0(period, if_else(is_iqr, " IQR", "")) %>%
       factor(levels = c(
@@ -125,13 +135,13 @@ plot_data <- results_filtered %>%
 
 make_hr_plot <- function(df, poll, outc) {
   ggplot(df, aes(x = estimate, y = metric)) +
-    geom_point(shape = 15, size = 2, colour = "black") +
+    geom_point(shape = 15, size = 1.5, colour = "black") +
     geom_errorbarh(aes(xmin = conf.low, xmax = conf.high),
                    height = 0.2, colour = "black") +
     geom_vline(xintercept = 1, linetype = "dashed", colour = "red", alpha = 0.5) +
     geom_text(
       aes(
-        x     = 2.25,
+        x     = 1.9,
         label = sprintf("%.2f (%.2f–%.2f)", estimate, conf.low, conf.high)
       ),
       hjust = 1.02, size = 3, colour = "black"
@@ -141,7 +151,7 @@ make_hr_plot <- function(df, poll, outc) {
                labeller = labeller(method = c(Kriging = "Kriging",
                                               IDW     = "IDW")),
                strip.position = "top") +
-    scale_x_continuous(limits = c(0, 2.25), expand = c(0, 0)) +
+    scale_x_continuous(limits = c(0, 2), expand = c(0, 0)) +
     labs(
       title = paste0("HR for ", outc, " — ", poll),
       x     = "HR (95% CI)",
@@ -196,8 +206,6 @@ ggsave(plots_save,
   units = 'cm',
   scaling = 1.2,
   device = ragg::agg_png)
-
-
 
 ggsave(plots_list$birth_preterm_Ozone + labs(title = "HR Preterm vs Ozone"),, 
   filename = paste0("Output/", "Models/", "PTB_COX_O3", ".png"), 

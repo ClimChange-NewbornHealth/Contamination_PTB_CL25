@@ -1,32 +1,13 @@
-# Code 5: Descriptives ----
-
-rm(list=ls())
-## Settings ----
-source("Code/0.1 Settings.R")
-source("Code/0.2 Functions.R")
-source("Code/0.3 Packages.R")
-
-# Data path
-data_out <- "Data/Output/"
-
-## Data ---- 
+## Exposition Data ---- 
 
 exp_data <- rio::import(paste0(data_out, "series_births_exposition_pm25_o3_kriging_idw", ".RData")) %>% drop_na()
 glimpse(exp_data)
 
-date_ref <- as.Date("2020-12-31")
-date_fcb <- date_ref - weeks(42) # Maybe max(exp_data$weeks)
-
-exp_data_filter <- exp_data |> filter(date_nac <= date_fcb) 
-nrow(exp_data) - nrow(exp_data_filter)
-summary(exp_data_filter$date_ends_week_gest)
-summary(exp_data_filter$date_nac)
-
 exposure_vars <- c(
-  "pm25_krg_full", "pm25_krg_30", "pm25_krg_4",
-  "o3_krg_full", "o3_krg_30", "o3_krg_4",
-  "pm25_idw_full", "pm25_idw_30", "pm25_idw_4",
-  "o3_idw_full",   "o3_idw_30",   "o3_idw_4"
+  "pm25_krg_full_10", "pm25_krg_30_10", "pm25_krg_4_10",
+  "o3_krg_full_10", "o3_krg_30_10", "o3_krg_4_10",
+  "pm25_idw_full_10", "pm25_idw_30_10", "pm25_idw_4_10",
+  "o3_idw_full_10",   "o3_idw_30_10",   "o3_idw_4_10"
 )
 
 exp_data <- exp_data |> 

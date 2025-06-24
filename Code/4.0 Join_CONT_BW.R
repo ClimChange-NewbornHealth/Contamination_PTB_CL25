@@ -78,5 +78,22 @@ bw_data_join <- bw_data_join |>
 
 glimpse(bw_data_join)
 
-## Save Data ----
+## Save Data Full ----
 save(bw_data_join, file=paste0(data_out, "series_births_exposition_pm25_o3_kriging_idw", ".RData"))
+
+## Save Data Ozone (Summer) ----
+
+bw_data_ozone <- bw_data_join |>
+  rowwise() |>
+  mutate(
+    last30_start = date_nac - days(29),
+    last30_months = list(unique(month(seq(last30_start, date_nac, by = "1 day")))),
+    exposed_last30_summer = all(last30_months %in% c(11, 12, 1, 2, 3))
+  ) |>
+  ungroup() |>
+  filter(exposed_last30_summer) |>
+  select(-last30_start, -last30_months, -exposed_last30_summer)
+
+glimpse(bw_data_ozone)
+
+save(bw_data_ozone, file=paste0(data_out, "series_births_exposition_pm25_o3_kriging_idw_ozone_summer", ".RData"))

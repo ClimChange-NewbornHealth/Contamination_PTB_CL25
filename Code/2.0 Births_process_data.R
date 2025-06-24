@@ -49,6 +49,8 @@ table(births20$region)
 table(births20$comuna)
 length(unique(births20$comuna[births20$comuna>=13000 & births20$comuna<14000]))
 
+nrow(filter(births, ano_nac %in% 2010:2018)) + nrow(births19) + nrow(births20) # 2557140
+  
 births <- births |> filter(comuna>=13000 & comuna<14000) # 2,724,086
 births19 <- births19 |> filter(comuna>=13000 & comuna<14000) |> mutate(region=13) # 89,770
 births20 <- births20 |> filter(comuna>=13000 & comuna<14000) |> mutate(region=13) # 81,351
@@ -85,6 +87,8 @@ unique(births$ano_nac)
 births <- births |> 
   filter(ano_nac %in% c(2010:2020)) # 1060476
 
+nrow(births)
+
 # Adjust BW with urban Santiago
 # Adjust BW with urban Santiago
 com <- chilemapas::codigos_territoriales |> 
@@ -102,6 +106,7 @@ com_suburb <- c(unique(com$codigo_comuna[com$nombre_provincia=="Santiago"]), 132
 births <- births |> filter(comuna %in% com_suburb) # 859626
 births <- births |> 
   left_join(com, by=c("comuna"="codigo_comuna"))
+
 
 ### 3. Create week_gest obs ----
 
@@ -167,6 +172,8 @@ births <- births |>
     job_dad=if_else(activ_padre %in% c(3,9), NA_real_, activ_padre+1)
     )
 
+summary(births)
+
 # Apply filters
 start_count <- nrow(births)
 
@@ -216,24 +223,23 @@ births <- births |>
       age_mom <= 20 ~ 1, 
       age_mom > 20 & age_mom <= 29 ~ 2,
       age_mom >= 30 & age_mom <= 39 ~ 3,
-      age_mom >= 40 & age_mom <= 49 ~ 4,
-      age_mom >= 50 ~ 5, 
-      TRUE ~ NA_real_
+      age_mom >= 40 ~ 4, 
+      TRUE ~ 5
     ),
     age_group_mom=factor(age_group_mom, 
                          levels=c(1:5), 
-                         labels=c("<=20", "20-29", "30-39", "40-49", ">=50")),
+                         labels=c("<=20", "20-29", "30-39", ">=40", "Unknown")),
     educ_group_mom = case_when(
-      educ_mom == 1 ~ 4, # College
-      educ_mom == 2 ~ 3, # Secondary
-      educ_mom == 3 ~ 3, # Secondary
-      educ_mom == 4 ~ 2, # Primary
+      educ_mom == 1 ~ 3, # College
+      educ_mom == 2 ~ 2, # Secondary
+      educ_mom == 3 ~ 2, # Secondary
+      educ_mom == 4 ~ 1, # Primary
       educ_mom == 5 ~ 1, # No educaction 
       TRUE ~ NA_real_, #Unknow
     ), 
     educ_group_mom = factor(educ_group_mom, 
-                            levels = c(1:4), 
-                            labels = c("Non education", "Primary", "Secondary", "College")),
+                            levels = c(1:3), 
+                            labels = c("Primary", "Secondary", "College")),
     #job_group_mom = if_else(is.na(job_mom), 4, job_mom), 
     job_group_mom = if_else(job_mom==3, 1, job_mom),
     job_group_mom = factor(job_group_mom, levels = c(1,2), labels=c("Not working", "Employed"))
@@ -244,24 +250,23 @@ births <- births |>
       age_dad <= 20 ~ 1, 
       age_dad > 20 & age_dad <= 29 ~ 2,
       age_dad >= 30 & age_dad <= 39 ~ 3,
-      age_dad >= 40 & age_dad <= 49 ~ 4,
-      age_dad >= 50 ~ 5, 
-      TRUE ~ 6
+      age_dad >= 40 ~ 4,
+      TRUE ~ 5
     ),
     age_group_dad=factor(age_group_dad, 
-                         levels=c(1:6), 
-                         labels=c("<=20", "20-29", "30-39", "40-49", ">=50", "Unknown")),
+                         levels=c(1:5), 
+                         labels=c("<=20", "20-29", "30-39", ">=40", "Unknown")),
     educ_group_dad = case_when(
-      educ_dad == 1 ~ 4, # College
-      educ_dad == 2 ~ 3, # Secondary
-      educ_dad == 3 ~ 3, # Secondary
-      educ_dad == 4 ~ 2, # Primary
+      educ_dad == 1 ~ 3, # College
+      educ_dad == 2 ~ 2, # Secondary
+      educ_dad == 3 ~ 2, # Secondary
+      educ_dad == 4 ~ 1, # Primary
       educ_dad == 5 ~ 1, # No educaction 
-      TRUE ~ 5, #Unknow
+      TRUE ~ 4, #Unknow
     ), 
     educ_group_dad = factor(educ_group_dad, 
-                            levels = c(1:5), 
-                            labels = c("Non education", "Primary", "Secondary", "College", "Unknown")),
+                            levels = c(1:4), 
+                            labels = c("Primary", "Secondary", "College", "Unknown")),
     job_group_dad = if_else(job_dad==3, 1, job_dad),
     job_group_dad = if_else(is.na(job_group_dad), 3, job_group_dad), 
     job_group_dad = factor(job_group_dad, levels = c(1,2,3), labels=c("Not working", "Employed", "Unknown"))
@@ -277,9 +282,10 @@ births <- births |>
          sex, tbw, size, 
          age_group_mom,educ_group_mom,job_group_mom,
          age_group_dad,educ_group_dad,job_group_dad,
-) 
+) |> 
+drop_na()
 
-glimpse(births) # 835087
+glimpse(births) # 818336
 
 ### 6. Exclusion criteria  -----
 
@@ -379,7 +385,7 @@ births <- births |>
   filter(date_ends_week_gest <= date_last_week)
 
 # N=727290
-
+nrow(births)
 summary(births)
 
 ### 7.  Save new births data ----
