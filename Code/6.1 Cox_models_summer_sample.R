@@ -112,7 +112,7 @@ results_cox <- rio::import(paste0("Output/", "Models/", "Cox_models_contaminatio
 
 ## Plots with Exposure Effects COX Models ---- 
 
-exp_vars <- str_subset(exp_vars, pattern = "o3")
+exp_vars <- str_subset(exp_vars, pattern =  "^o3.*_10$", negate = TRUE)
 
 results_filtered <- results_cox |>
   filter(term %in% c(exp_vars))
@@ -125,7 +125,7 @@ results_filtered <- results_filtered |>
            conf.low = round(conf.low, 4),
            conf.high = round(as.numeric(conf.high), 4)) 
 
-exp_vars <- str_subset(unique(results_filtered$term), "_(10|iqr)$")
+#exp_vars <- str_subset(unique(results_filtered$term), "(_10)$", negate = TRUE)
 
 plot_data <- results_filtered |>
   filter(term %in% exp_vars) |>
@@ -142,11 +142,11 @@ plot_data <- results_filtered |>
     ),
     # Ventana / trimestre
     period = case_when(
-      str_detect(term, "_4_")      ~ "4-day",
+      str_detect(term, "_4")      ~ "4-day",
       str_detect(term, "_30")      ~ "30-day",
-      str_detect(term, "_t1_")     ~ "T1",
-      str_detect(term, "_t2_")     ~ "T2",
-      str_detect(term, "_t3_")     ~ "T3",
+      str_detect(term, "_t1")     ~ "T1",
+      str_detect(term, "_t2")     ~ "T2",
+      str_detect(term, "_t3")     ~ "T3",
       str_detect(term, "_full")    ~ "Full"
     ) |> factor(levels = c("4-day","30-day","T1","T2","T3","Full")),
     # Media vs IQR

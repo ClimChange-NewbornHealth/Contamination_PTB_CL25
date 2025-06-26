@@ -114,6 +114,8 @@ results_cox <- rio::import(paste0("Output/", "Models/", "Cox_models_contaminatio
 
 ## Plots with Exposure Effects COX Models ---- 
 
+exp_vars <- str_subset(unique(exp_vars), "^o3.*(_10)$", negate = TRUE) # Test
+
 results_filtered <- results_cox |>
   filter(term %in% c(exp_vars))
 
@@ -125,7 +127,7 @@ results_filtered <- results_filtered |>
            conf.low = round(conf.low, 4),
            conf.high = round(conf.high, 4)) 
 
-exp_vars <- str_subset(unique(results_filtered$term), "_(10|iqr)$")
+#exp_vars <- str_subset(unique(results_filtered$term), "_(10|iqr)$")
 
 plot_data <- results_filtered |>
   filter(term %in% exp_vars) |>
@@ -142,11 +144,11 @@ plot_data <- results_filtered |>
     ),
     # Ventana / trimestre
     period = case_when(
-      str_detect(term, "_4_")      ~ "4-day",
+      str_detect(term, "_4")      ~ "4-day",
       str_detect(term, "_30")      ~ "30-day",
-      str_detect(term, "_t1_")     ~ "T1",
-      str_detect(term, "_t2_")     ~ "T2",
-      str_detect(term, "_t3_")     ~ "T3",
+      str_detect(term, "_t1")     ~ "T1",
+      str_detect(term, "_t2")     ~ "T2",
+      str_detect(term, "_t3")     ~ "T3",
       str_detect(term, "_full")    ~ "Full"
     ) |> factor(levels = c("4-day","30-day","T1","T2","T3","Full")),
     # Media vs IQR
@@ -215,8 +217,8 @@ make_pair <- function(df, method_name, pollutant_name, tag10, tagIQR, li, lr, sc
 
 pA <- make_pair(plot_data, "Kriging", "PM2.5", tag10 = "A-KRG.", tagIQR = "B-KRG.", li=0.4, lr=2, scale="umg/m3")
 pB <- make_pair(plot_data, "IDW",     "PM2.5", tag10 = "C-IDW.", tagIQR = "D-IDW.", li=0, lr=2, scale="umg/m3")
-pC <- make_pair(plot_data, "Kriging", "Ozone", tag10 = "A.-KRG", tagIQR = "B-KRG", li=0, lr=2, scale="ppb")
-pD <- make_pair(plot_data, "IDW",     "Ozone", tag10 = "C-IDW.", tagIQR = "D-IDW.", li=0, lr=2, scale="ppb")
+pC <- make_pair(plot_data, "Kriging", "Ozone", tag10 = "A.-KRG", tagIQR = "B-KRG", li=0.5, lr=1.5, scale="ppb")
+pD <- make_pair(plot_data, "IDW",     "Ozone", tag10 = "C-IDW.", tagIQR = "D-IDW.", li=0.75, lr=1.25, scale="ppb")
 
 final_plot <- (pA / pB) 
 
