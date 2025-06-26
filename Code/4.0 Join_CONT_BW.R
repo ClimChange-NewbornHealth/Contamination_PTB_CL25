@@ -54,7 +54,7 @@ glimpse(exp)
 glimpse(sovi)
 
 exp_j <- exp |> 
-  select(id, pm25_krg_full:o3_idw_t3_iqr)
+  select(id, pm25_krg_full:o3_idw_t3)
 
 glimpse(exp_j)
 
@@ -71,10 +71,23 @@ bw_data_join$vulnerability <- droplevels(
 
 ## Exposure vars ----
 
-exposure_vars <- colnames(bw_data_join)[34:81]
+exposure_vars <- colnames(bw_data_join)[34:57]
+exposure_vars
+
+# exposure_vars/10
+bw_data_join <- bw_data_join |> 
+  mutate(across(all_of(exposure_vars), ~ .x / 10, .names = "{.col}_10")) 
+
+# exposure_vars/IQR(exposure_vars)
+iqr_vals <- bw_data_join |>
+  summarise(across(all_of(exposure_vars), ~ IQR(.x, na.rm = TRUE))) |>
+  as.list()
+iqr_vals # Calculate IQR per variable 
+
+writexl::write_xlsx(iqr_vals |> data.frame(), paste0(data_out, "Data_IQR_ref_values.xlsx"))
 
 bw_data_join <- bw_data_join |> 
-  mutate(across(all_of(exposure_vars), ~ .x / 10, .names = "{.col}_10"))
+  mutate(across(all_of(exposure_vars), ~ .x / iqr_vals[[cur_column()]], .names = "{.col}_iqr"))
 
 glimpse(bw_data_join)
 
