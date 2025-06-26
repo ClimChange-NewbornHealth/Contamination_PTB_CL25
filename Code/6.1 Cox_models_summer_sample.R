@@ -106,7 +106,7 @@ saveRDS(results_list, file = "Output/Models/Contamination_models_Ozone_summer.rd
 
 results_cox <- bind_rows(results_list)
 
-writexl::write_xlsx(results_cox, path =  paste0("Output/", "Models/", "Cox_models_contamination", ".xlsx"))
+writexl::write_xlsx(results_cox, path =  paste0("Output/", "Models/", "Cox_models_contamination_Ozone_summer", ".xlsx"))
 
 results_cox <- rio::import(paste0("Output/", "Models/", "Cox_models_contamination_Ozone_summer", ".xlsx"))
 
@@ -121,7 +121,7 @@ results_filtered <- results_filtered |>
            statistic = round(statistic, 3),
            p.value = round(p.value, 3),
            conf.low = round(conf.low, 4),
-           conf.high = round(conf.high, 4)) 
+           conf.high = round(as.numeric(conf.high), 4)) 
 
 exp_vars <- str_subset(unique(results_filtered$term), "_(10|iqr)$")
 
