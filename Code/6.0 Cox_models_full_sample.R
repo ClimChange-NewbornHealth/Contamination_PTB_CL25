@@ -66,6 +66,8 @@ combinations <- expand.grid(
 )
 combinations
 
+writexl::write_xlsx(combinations, path =  paste0("Output/", "Models/", "List_models_contamination", ".xlsx"))
+
 ## HR COX Models ---- 
 fit_cox_model <- function(dependent, predictor, data) {
 
@@ -211,8 +213,8 @@ make_pair <- function(df, method_name, pollutant_name, tag10, tagIQR, li, lr, sc
   p10 + pI + plot_layout(ncol = 2)
 }
 
-pA <- make_pair(plot_data, "Kriging", "PM2.5", tag10 = "A-KRG.", tagIQR = "B-KRG.", li=0.4, lr=2, scale="10umg/m3")
-pB <- make_pair(plot_data, "IDW",     "PM2.5", tag10 = "C-IDW.", tagIQR = "D-IDW.", li=0, lr=2, scale="10umg/m3")
+pA <- make_pair(plot_data, "Kriging", "PM2.5", tag10 = "A-KRG.", tagIQR = "B-KRG.", li=0.4, lr=2, scale="umg/m3")
+pB <- make_pair(plot_data, "IDW",     "PM2.5", tag10 = "C-IDW.", tagIQR = "D-IDW.", li=0, lr=2, scale="umg/m3")
 pC <- make_pair(plot_data, "Kriging", "Ozone", tag10 = "A.-KRG", tagIQR = "B-KRG", li=0, lr=2, scale="ppb")
 pD <- make_pair(plot_data, "IDW",     "Ozone", tag10 = "C-IDW.", tagIQR = "D-IDW.", li=0, lr=2, scale="ppb")
 

@@ -112,6 +112,8 @@ results_cox <- rio::import(paste0("Output/", "Models/", "Cox_models_contaminatio
 
 ## Plots with Exposure Effects COX Models ---- 
 
+exp_vars <- str_subset(exp_vars, pattern = "o3")
+
 results_filtered <- results_cox |>
   filter(term %in% c(exp_vars))
 
@@ -211,8 +213,8 @@ make_pair <- function(df, method_name, pollutant_name, tag10, tagIQR, li, lr, sc
   p10 + pI + plot_layout(ncol = 2)
 }
 
-pA <- make_pair(plot_data, "Kriging", "Ozone", tag10 = "A.-KRG", tagIQR = "B-KRG", li=0, lr=2, scale="ppb")
-pB <- make_pair(plot_data, "IDW",     "Ozone", tag10 = "C-IDW.", tagIQR = "D-IDW.", li=0, lr=2, scale="ppb")
+pA <- make_pair(plot_data, "Kriging", "Ozone", tag10 = "A.-KRG", tagIQR = "B-KRG", li=0, lr=10, scale="ppb")
+pB <- make_pair(plot_data, "IDW",     "Ozone", tag10 = "C-IDW.", tagIQR = "D-IDW.", li=0, lr=10, scale="ppb")
 
 final_plot <- (pA / pB) 
 print(final_plot)

@@ -105,7 +105,25 @@ bw_data_ozone <- bw_data_join |>
   ) |>
   ungroup() |>
   filter(exposed_last30_summer) |>
-  select(-last30_start, -last30_months, -exposed_last30_summer)
+  select(-last30_start, -last30_months, -exposed_last30_summer) |> 
+  select(id:o3_idw_t3)
+
+glimpse(bw_data_ozone)
+
+# exposure_vars/10
+bw_data_ozone <- bw_data_ozone |> 
+  mutate(across(all_of(exposure_vars), ~ .x / 10, .names = "{.col}_10")) 
+
+# exposure_vars/IQR(exposure_vars)
+iqr_vals <- bw_data_ozone |>
+  summarise(across(all_of(exposure_vars), ~ IQR(.x, na.rm = TRUE))) |>
+  as.list()
+iqr_vals # Calculate IQR per variable 
+
+writexl::write_xlsx(iqr_vals |> data.frame(), paste0(data_out, "Data_IQR_ref_values_summer.xlsx"))
+
+bw_data_ozone <- bw_data_ozone |> 
+  mutate(across(all_of(exposure_vars), ~ .x / iqr_vals[[cur_column()]], .names = "{.col}_iqr"))
 
 glimpse(bw_data_ozone)
 
