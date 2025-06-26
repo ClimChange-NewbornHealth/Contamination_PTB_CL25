@@ -15,17 +15,34 @@ exp_data <- rio::import(paste0(data_out, "series_births_exposition_pm25_o3_krigi
 summary(exp_data)
 glimpse(exp_data) # 713.918
 
-exp_vars <- exp_data |> select(c(
-  "pm25_krg_full_10":"o3_idw_full_10",  
-  "pm25_krg_30_10":"o3_idw_30_10",
-  "pm25_krg_4_10":"o3_idw_4_10",
-  "pm25_krg_t1_10":"o3_idw_t3_10",
-  "pm25_krg_full_iqr":"o3_idw_full_iqr",
-  "pm25_krg_30_iqr":"o3_idw_30_iqr",
-  "pm25_krg_4_iqr":"o3_idw_4_iqr",
-  "pm25_krg_t1_iqr":"o3_idw_t3_iqr" 
-)) |> colnames()
-exp_vars
+exp_vars <- exp_data |>
+  select(starts_with("pm25_krg"), starts_with("pm25_idw"),
+         starts_with("o3_krg"),   starts_with("o3_idw")) |>
+  names()
+
+t1_10   <- grep("_t1_10$",  exp_vars, value = TRUE)
+groups10 <- lapply(t1_10, function(v) {
+  base <- sub("_t1_10$", "", v)
+  paste0(base, c("_t1_10","_t2_10","_t3_10"))
+})
+
+t1_iqr  <- grep("_t1_iqr$", exp_vars, value = TRUE)
+groups_iqr <- lapply(t1_iqr, function(v) {
+  base <- sub("_t1_iqr$", "", v)
+  paste0(base, c("_t1_iqr","_t2_iqr","_t3_iqr"))
+})
+
+# Vector con todas las variables de trimestres (10 + iqr)
+trimestre_vars <- c(unlist(groups10, use.names = FALSE),
+                    unlist(groups_iqr, use.names = FALSE))
+
+# Variables de exposición “individuales”
+single_vars <- setdiff(exp_vars, trimestre_vars)
+
+grouped10   <- vapply(groups10,   paste, collapse = " + ", FUN.VALUE = "")
+grouped_iqr <- vapply(groups_iqr, paste, collapse = " + ", FUN.VALUE = "")
+
+exp_vars_models <- c(single_vars, grouped10, grouped_iqr)
 
 dependent_vars <- c("birth_preterm", "birth_very_preterm", "birth_moderately_preterm", 
                     "birth_late_preterm") # , "birth_term", "birth_posterm"
@@ -36,8 +53,18 @@ control_vars <- c("weeks", "sex",
     "month_week1", "year_week1", "vulnerability")
 
 exp_data <- exp_data |> 
-  dplyr::select(all_of(c("id",  dependent_vars, control_vars, exp_vars
+  dplyr::select(all_of(c("id",  dependent_vars, control_vars, exp_vars, trimestre_vars 
   )))
+
+glimpse(exp_data)
+
+# All models execution
+combinations <- expand.grid(
+  dependent  = dependent_vars,
+  predictor  = exp_vars_models,
+  stringsAsFactors = FALSE
+)
+combinations
 
 ## HR COX Models ---- 
 fit_cox_model <- function(dependent, predictor, data) {
@@ -59,65 +86,11 @@ fit_cox_model <- function(dependent, predictor, data) {
   rm(model_fit); gc()
 }
 
-# Iterar sobre las combinaciones de dependientes y predictores
-combinations <- expand.grid(dependent_vars, exp_vars, stringsAsFactors = FALSE)
-
-plan(multisession, workers = parallel::detectCores() - 4)
-options(future.globals.maxSize = 1.5 * 1024^3)  # 1.5 GB
-
-tic()
-results_list <- future_lapply(seq_len(nrow(combinations)), function(i) {
-  dep_var <- combinations[i, 1]
-  exp_var <- combinations[i, 2]
-  fit_cox_model(dep_var, exp_var, data=exp_data)
-})
-toc() # time: 
-beepr::beep(8)
-plan(sequential)
-
-# Extract results
-results_cox <- bind_rows(results_list)
-
-## Trimester models -----
-
-exp_vars <- exp_data |>
-  select(starts_with("pm25_krg"), starts_with("pm25_idw"),
-         starts_with("o3_krg"),   starts_with("o3_idw")) |>
-  names()
-
-t1_10   <- grep("_t1_10$",  exp_vars, value = TRUE)
-groups10 <- lapply(t1_10, function(v) {
-  base <- sub("_t1_10$", "", v)
-  paste0(base, c("_t1_10","_t2_10","_t3_10"))
-})
-#    Para medidas iqr
-t1_iqr  <- grep("_t1_iqr$", exp_vars, value = TRUE)
-groups_iqr <- lapply(t1_iqr, function(v) {
-  base <- sub("_t1_iqr$", "", v)
-  paste0(base, c("_t1_iqr","_t2_iqr","_t3_iqr"))
-})
-
-# Vector con todas las variables de trimestres (10 + iqr)
-trimestre_vars <- c(unlist(groups10, use.names = FALSE),
-                    unlist(groups_iqr, use.names = FALSE))
-
-# Variables de exposición “individuales”
-single_vars <- setdiff(exp_vars, trimestre_vars)
-
-grouped10   <- vapply(groups10,   paste, collapse = " + ", FUN.VALUE = "")
-grouped_iqr <- vapply(groups_iqr, paste, collapse = " + ", FUN.VALUE = "")
-
-exp_vars2 <- c(single_vars, grouped10, grouped_iqr)
-
-combinations <- expand.grid(
-  dependent  = dependent_vars,
-  predictor  = exp_vars2,
-  stringsAsFactors = FALSE
-)
+## Parallel models -----
 
 plan(multisession, workers = parallel::detectCores() - 1)
 options(future.globals.maxSize = 1.5 * 1024^3)
-
+tic()
 results_list <- future_lapply(seq_len(nrow(combinations)), function(i) {
   dep <- combinations$dependent[i]
   pred <- combinations$predictor[i]
@@ -125,8 +98,11 @@ results_list <- future_lapply(seq_len(nrow(combinations)), function(i) {
   # Tu función original, que arma la fórmula y corre coxph:
   fit_cox_model(dep, pred, data = exp_data)
 })
-
+toc() # 196,962 sec elapsed 
 plan(sequential)
+
+# Save models results
+saveRDS(results_list, file = "Output/Models/Contamination_models.rds")
 
 results_cox <- bind_rows(results_list)
 
@@ -147,7 +123,7 @@ results_filtered <- results_filtered |>
            conf.low = round(conf.low, 4),
            conf.high = round(conf.high, 4)) 
 
-exp_vars <- unique(results_filtered$term)
+exp_vars <- str_subset(unique(results_filtered$term), "_(10|iqr)$")
 
 plot_data <- results_filtered |>
   filter(term %in% exp_vars) |>
@@ -185,7 +161,7 @@ plot_data <- results_filtered |>
 
 # Design the plot
 
-make_pair <- function(df, method_name, pollutant_name, tag10, tagIQR, li, lr) {
+make_pair <- function(df, method_name, pollutant_name, tag10, tagIQR, li, lr, scale) {
   df_base <- df |>
     filter(method   == method_name,
            pollutant == pollutant_name) |> 
@@ -200,7 +176,7 @@ make_pair <- function(df, method_name, pollutant_name, tag10, tagIQR, li, lr) {
     geom_point(aes(color = pollutant), size = 2) +
     scale_x_continuous(limits = c(li, lr)) +
     scale_color_manual(values = if (pollutant_name=="PM2.5") "darkred" else "darkblue") +
-    labs(subtitle = paste0(tag10, " ", pollutant_name, " [10umg/m3]"),
+    labs(subtitle = paste0(tag10, " ", pollutant_name, " [", scale," - X/10]"),
          x = "HR (95% CI)", y = NULL) +
     theme_light() +
     theme(
@@ -220,7 +196,7 @@ make_pair <- function(df, method_name, pollutant_name, tag10, tagIQR, li, lr) {
     geom_point(aes(color = pollutant), size = 2) +
     scale_x_continuous(limits = c(li, lr)) +
     scale_color_manual(values = if (pollutant_name=="PM2.5") "darkred" else "darkblue") +
-    labs(subtitle = paste0(tagIQR, " ", pollutant_name, " [10umg/m3 - IQR]"),
+    labs(subtitle = paste0(tagIQR, " ", pollutant_name, " [", scale," - X/IQR]"),
          x = "HR (95% CI)", y = NULL) +
     theme_light() +
     theme(
@@ -235,11 +211,10 @@ make_pair <- function(df, method_name, pollutant_name, tag10, tagIQR, li, lr) {
   p10 + pI + plot_layout(ncol = 2)
 }
 
-pA <- make_pair(plot_data, "Kriging", "PM2.5", tag10 = "A.", tagIQR = "B.", li=0.4, lr=1.6)
-pB <- make_pair(plot_data, "IDW",     "PM2.5", tag10 = "C.", tagIQR = "D.", li=0.8, lr=1.2)
-pC <- make_pair(plot_data, "Kriging", "Ozone", tag10 = "A.", tagIQR = "B.", li=0, lr=2)
-pD <- make_pair(plot_data, "IDW",     "Ozone", tag10 = "C.", tagIQR = "D.", li=0, lr=2)
-
+pA <- make_pair(plot_data, "Kriging", "PM2.5", tag10 = "A-KRG.", tagIQR = "B-KRG.", li=0.4, lr=2, scale="10umg/m3")
+pB <- make_pair(plot_data, "IDW",     "PM2.5", tag10 = "C-IDW.", tagIQR = "D-IDW.", li=0, lr=2, scale="10umg/m3")
+pC <- make_pair(plot_data, "Kriging", "Ozone", tag10 = "A.-KRG", tagIQR = "B-KRG", li=0, lr=2, scale="ppb")
+pD <- make_pair(plot_data, "IDW",     "Ozone", tag10 = "C-IDW.", tagIQR = "D-IDW.", li=0, lr=2, scale="ppb")
 
 final_plot <- (pA / pB) 
 
