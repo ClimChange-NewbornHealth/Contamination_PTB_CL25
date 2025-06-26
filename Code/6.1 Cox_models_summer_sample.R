@@ -241,6 +241,10 @@ pB <- make_pair(plot_data, "IDW",     "PM2.5", tag10 = "C.", tagIQR = "D.", li=0
 pC <- make_pair(plot_data, "Kriging", "Ozone", tag10 = "A.", tagIQR = "B.", li=0, lr=2)
 pD <- make_pair(plot_data, "IDW",     "Ozone", tag10 = "C.", tagIQR = "D.", li=0, lr=2)
 
+pA
+pB
+pC
+pD
 
 final_plot <- (pA / pB) 
 
