@@ -51,9 +51,6 @@ glimpse(cont_data)
 cont_vars <- c("pm25_krg", "o3_krg", "pm25_idw", "o3_idw")
 
 cont_data <- cont_data |> 
-  mutate(across(all_of(cont_vars), ~ .x / 10, .names = "{.col}"))
-
-cont_data <- cont_data |> 
   filter(date <= as.Date("2020-12-31"))
 
 ### Mean contamination -----
@@ -62,9 +59,20 @@ tab1 <- cont_data |>
   group_by(codigo_comuna, name_com) |> 
   summarise(
     mean_pm25_k = round(mean(pm25_krg),2),
+    min_pm25_k = round(min(pm25_krg),2),
+    max_pm25_k = round(max(pm25_krg),2),
+    
     mean_o3_k = round(mean(o3_krg),2),
+    min_o3_k = round(min(o3_krg),2),
+    max_o3_k = round(max(o3_krg),2),
+
     mean_pm25_i = round(mean(pm25_idw),2),
-    mean_o3_i = round(mean(o3_idw),2)
+    min_pm25_i = round(min(pm25_idw),2),
+    max_pm25_i = round(max(pm25_idw),2),
+
+    mean_o3_i = round(mean(o3_idw),2),
+    min_o3_i = round(min(o3_idw),2),
+    max_o3_i = round(max(o3_idw),2)
   ) |> 
   mutate(across(where(is.numeric), ~ format(., decimal.mark = ".", scientific = FALSE)))
 
@@ -91,9 +99,20 @@ tab2 <- cont_data |>
   group_by(codigo_comuna, name_com, season, year) |> 
   summarise(
     mean_pm25_k = round(mean(pm25_krg),2),
+    min_pm25_k = round(min(pm25_krg),2),
+    max_pm25_k = round(max(pm25_krg),2),
+    
     mean_o3_k = round(mean(o3_krg),2),
+    min_o3_k = round(min(o3_krg),2),
+    max_o3_k = round(max(o3_krg),2),
+
     mean_pm25_i = round(mean(pm25_idw),2),
-    mean_o3_i = round(mean(o3_idw),2)
+    min_pm25_i = round(min(pm25_idw),2),
+    max_pm25_i = round(max(pm25_idw),2),
+
+    mean_o3_i = round(mean(o3_idw),2),
+    min_o3_i = round(min(o3_idw),2),
+    max_o3_i = round(max(o3_idw),2)
   ) |> 
   mutate(across(where(is.numeric), ~ format(., decimal.mark = ".", scientific = FALSE)))
 
@@ -106,17 +125,22 @@ tab3 <- cont_data |>
   group_by(year, season) |> 
   summarise(
     mean_pm25_k = round(mean(pm25_krg),2),
+    min_pm25_k = round(min(pm25_krg),2),
+    max_pm25_k = round(max(pm25_krg),2),
+    
     mean_o3_k = round(mean(o3_krg),2),
+    min_o3_k = round(min(o3_krg),2),
+    max_o3_k = round(max(o3_krg),2),
+
     mean_pm25_i = round(mean(pm25_idw),2),
-    mean_o3_i = round(mean(o3_idw),2)
+    min_pm25_i = round(min(pm25_idw),2),
+    max_pm25_i = round(max(pm25_idw),2),
+
+    mean_o3_i = round(mean(o3_idw),2),
+    min_o3_i = round(min(o3_idw),2),
+    max_o3_i = round(max(o3_idw),2)
   ) |> 
-  mutate(across(where(is.numeric), ~ format(., decimal.mark = ".", scientific = FALSE))) |> 
-  #mutate(across(starts_with("mean_"), ~ sprintf("%.2f", .))) |>
-  pivot_wider(
-    names_from = season,
-    values_from = c(mean_pm25_k, mean_o3_k, mean_pm25_i, mean_o3_i),
-    names_sep = "_"
-  )
+  mutate(across(where(is.numeric), ~ format(., decimal.mark = ".", scientific = FALSE))) 
 
 
 tab3
@@ -164,11 +188,11 @@ plot_density_panel <- function(data, contaminant, xlim_range = NULL) {
     coord_cartesian(xlim = xlim_range)
 }
 
-g1 <- plot_density_panel(data_dens, contaminant = "PM2.5", xlim_range = c(0, 10)) +
-  labs(title = "A. PM2.5: Distribution by Method")
+g1 <- plot_density_panel(data_dens, contaminant = "PM2.5", xlim_range = c(0, 100)) +
+  labs(title = "A. PM2.5")
 
-g2 <- plot_density_panel(data_dens, contaminant = "O3", xlim_range = c(0, 3.5)) +
-  labs(title = "B. O3: Distribution by Method")
+g2 <- plot_density_panel(data_dens, contaminant = "O3", xlim_range = c(0, 100)) +
+  labs(title = "B. O3")
 
 
 plt1 <- ggarrange(g1, g2, ncol = 2, common.legend = TRUE)
@@ -217,8 +241,8 @@ g3 <- plot_corr_panel(
   xlab = "PM2.5 Kriging",
   ylab = "PM2.5 IDW"
 ) +
-  scale_x_continuous(limits =c(0, 10)) +
-  scale_y_continuous(limits =c(0, 10)) +
+  scale_x_continuous(limits =c(0, 100)) +
+  scale_y_continuous(limits =c(0, 100)) +
   labs(title = "A. PM2.5: Kriging vs IDW") +
   theme(legend.position = "right")
 
@@ -229,8 +253,8 @@ g4 <- plot_corr_panel(
   xlab = "O3 Kriging",
   ylab = "O3 IDW"
 ) +
-  scale_x_continuous(limits =c(0, 3.5)) +
-  scale_y_continuous(limits =c(0, 3.5)) +
+  scale_x_continuous(limits =c(0, 35)) +
+  scale_y_continuous(limits =c(0, 35)) +
   labs(title = "B. O3: (Kriging) vs IDW") +
   theme(legend.position = "right")
 
@@ -287,7 +311,7 @@ gvars <- list(
 plots <- list()
 
 # Loop para crear cada gráfico
-for (v in vars) {
+for (v in gvars) {
   p <- ggplot(cont_data_mean, aes_string(x = "date", y = v$var)) +
     geom_point(size = 0.5, alpha = 0.1) +
     geom_smooth(method = "loess", span=0.05, se = TRUE, linewidth = 0.6) +
@@ -343,7 +367,7 @@ comunas_sf <- chilemapas::mapa_comunas |>
   select(codigo_comuna, geometry, id_mun) 
 
 cont_map <- cont_data |>
-  filter(year %in% c(2010, 2015, 2020), season %in% c("Winter", "Summer")) |>
+  filter(season %in% c("Winter", "Summer")) |> # year %in% c(2010, 2015, 2020), 
   group_by(name_com, codigo_comuna, year, season) |>
   summarise(
     pm25_krg = mean(pm25_krg, na.rm = TRUE),
@@ -356,23 +380,36 @@ cont_map <- cont_data |>
 
 glimpse(cont_map)
 
-plot_pollutant_map <- function(data, var, title) {
-  ggplot(data) +
-    geom_sf(aes(fill = .data[[var]], geometry=geometry), color = "white", size = 0.1) +
-    geom_sf_text(aes(label = id_mun, geometry = geometry), size = 2, fontface = "bold", color = "black", stat = "sf_coordinates") +
+plot_pollutant_map <- function(data, var, title, i, e) {
+  g1 <- data |> 
+  mutate(
+    year_group = case_when(
+      year <= 2015 ~ "2010-2015",
+      year > 2015 ~ "2016-2020"),
+    year = as.factor(year) 
+  ) |> 
+  filter(year %in% c(i:e)) |> 
+  ggplot( ) +
+    geom_sf(aes(fill = .data[[var]], geometry = geometry), color = "white", size = 0.1) +
+    #geom_sf_text(aes(label = id_mun, geometry = geometry), size = 2, fontface = "bold", color = "black", stat = "sf_coordinates") +
     facet_grid(season ~ year) +
+    #ggh4x::facet_nested(
+    #  cols = vars(year_group, year),
+    #  rows = vars(season),
+    #  switch = "y") +
     scale_fill_fermenter(
-      palette = "PuBuGn", direction = 1, 
-      n.breaks = 8, limits = c(0, 4),
+      palette = "YlOrRd", direction = 1, 
+      n.breaks = 8, limits = c(0, 50),
       name = expression(paste(PM[2.5], " (10", mu, "g/", m^3, ")")),
-      guide = guide_colorbar(expression(paste(PM[2.5], " (10", mu, "g/", m^3, ")")),
-                           barwidth = 10, barheight = 0.5, 
-                           direction = "horizontal", 
-                           title.position = "left",
-                           reverse = FALSE,
-                           label.theme = element_text(angle = 0)) 
+      guide = guide_colorbar(
+        barwidth = 10, barheight = 0.5, 
+        direction = "horizontal", 
+        title.position = "left",
+        reverse = FALSE,
+        label.theme = element_text(angle = 0)
+      )
     ) +
-    labs(title = title, x=NULL, y=NULL) +
+    labs(title = title, x = NULL, y = NULL) +
     theme_light() +
     theme(
       legend.position = "top",
@@ -387,24 +424,23 @@ plot_pollutant_map <- function(data, var, title) {
     )
 }
 
-m1 <- plot_pollutant_map(cont_map, "pm25_idw", NULL)
+m1 <- plot_pollutant_map(cont_map, "pm25_idw", NULL, i=2010, e=2020)
 
 m1
-
 
 ggsave(
   filename = "Output/Descriptives/Space_PM25_IDW.png",
   #plot     = last_plot(),
   res      = 300,
-  width    = 25,
-  height   = 20,
+  width    = 50,
+  height   = 30,
   units    = 'cm',
   scaling  = 0.9,
   device   = ragg::agg_png
 )
 
 
-m2 <- plot_pollutant_map(cont_map, "pm25_krg", NULL)
+m2 <- plot_pollutant_map(cont_map, "pm25_krg", NULL, i=2010, e=2020)
 
 m2
 
@@ -413,8 +449,8 @@ ggsave(
   filename = "Output/Descriptives/Space_PM25_KRG.png",
   #plot     = last_plot(),
   res      = 300,
-  width    = 25,
-  height   = 20,
+  width    = 50,
+  height   = 30,
   units    = 'cm',
   scaling  = 0.9,
   device   = ragg::agg_png
@@ -424,12 +460,12 @@ ggsave(
 plot_pollutant_map_o3 <- function(data, var, title) {
   ggplot(data) +
     geom_sf(aes(fill = .data[[var]], geometry=geometry), color = "white", size = 0.1) +
-    geom_sf_text(aes(label = id_mun, geometry = geometry), size = 2, fontface = "bold", color = "black", stat = "sf_coordinates") +
+    #geom_sf_text(aes(label = id_mun, geometry = geometry), size = 2, fontface = "bold", color = "black", stat = "sf_coordinates") +
     facet_grid(season ~ year) +
     scale_fill_fermenter(
       palette = "YlOrRd", direction = 1, 
-      n.breaks = 8, limits = c(0, 2),
-      name = expression(paste(O[3], " (10", mu, "g/", m^3, ")")),
+      n.breaks = 8, limits = c(0, 20),
+      name = expression(paste(O[3], "(ppb)")),
       guide = guide_colorbar(expression(paste(O[3], " (10", mu, "g/", m^3, ")")),
                            barwidth = 10, barheight = 0.5, 
                            direction = "horizontal", 
@@ -461,8 +497,8 @@ ggsave(
   filename = "Output/Descriptives/Space_O3_KRG.png",
   #plot     = last_plot(),
   res      = 300,
-  width    = 25,
-  height   = 20,
+  width    = 50,
+  height   = 30,
   units    = 'cm',
   scaling  = 0.9,
   device   = ragg::agg_png
@@ -476,8 +512,8 @@ ggsave(
   filename = "Output/Descriptives/Space_O3_IDW.png",
   #plot     = last_plot(),
   res      = 300,
-  width    = 25,
-  height   = 20,
+  width    = 50,
+  height   = 30,
   units    = 'cm',
   scaling  = 0.9,
   device   = ragg::agg_png

@@ -34,7 +34,7 @@ setdiff(unique(exp$name_com), unique(bw_data$name_com))
 setdiff(unique(bw_data$name_com), unique(exp$name_com))
 
 # Filter data only municipality in exposure
-bw_data <- bw_data %>% filter(com %in% unique(exp$com)) # 727290
+bw_data <- bw_data %>% filter(com %in% unique(exp$com)) # 713918
 
 # Add vulnerability data 
 sovi <- rio::import(paste0(data_sovi, "sovi_datasets", ".RData")) %>% 
@@ -71,7 +71,7 @@ bw_data_join$vulnerability <- droplevels(
 
 ## Exposure vars ----
 
-exposure_vars <- colnames(bw_data_join)[34:57]
+exposure_vars <- colnames(bw_data_join)[38:61]
 exposure_vars
 
 # exposure_vars/10

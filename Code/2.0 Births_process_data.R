@@ -224,11 +224,11 @@ births <- births |>
       age_mom > 20 & age_mom <= 29 ~ 2,
       age_mom >= 30 & age_mom <= 39 ~ 3,
       age_mom >= 40 ~ 4, 
-      TRUE ~ 5
+      TRUE ~ NA
     ),
     age_group_mom=factor(age_group_mom, 
-                         levels=c(1:5), 
-                         labels=c("<=20", "20-29", "30-39", ">=40", "Unknown")),
+                         levels=c(1:4), 
+                         labels=c("<=20", "20-29", "30-39", ">=40")),
     educ_group_mom = case_when(
       educ_mom == 1 ~ 3, # College
       educ_mom == 2 ~ 2, # Secondary
@@ -361,14 +361,42 @@ births <- births |>
 nrow(births)
 
 ### 7. Outcome: preterm (834917) ---- 
+# Refs p10 weeks 28-42 (Alarcón & Pittaluga)
+ref_p10 <- tribble(
+  ~weeks, ~p10,
+    28,  945.7,
+    29, 1092.1,
+    30, 1258.2,
+    31, 1439.2,
+    32, 1630.8,
+    33, 1828.7,
+    34, 2028.6,
+    35, 2226.0,
+    36, 2416.7,
+    37, 2562.2,
+    38, 2760.2,
+    39, 2904.2,
+    40, 3024.1,
+    41, 3115.3,
+    42, 3173.5,
+    43,    NA_real_,  # dejamos NA para calcularlo
+    44,    NA_real_
+)
+
 births <- births |> 
+  left_join(ref_p10, by = "weeks") |> 
+  mutate(p10 = if_else(is.na(p10), quantile(tbw, probs = 0.1, na.rm = TRUE), p10)) |> 
   mutate(birth_preterm = if_else(weeks < 37, 1, 0)) |>
+  mutate(lbw = if_else(tbw < 2500, 1, 0)) |> 
+  mutate(tlbw = if_else(tbw < 2500 & weeks >= 37, 1, 0)) |> 
+  mutate(sga = if_else(tbw < p10, 1, 0)) |> 
+  select(-p10) |> 
   #mutate(birth_extremely_preterm = if_else(weeks < 28, 1, 0)) |> 
   mutate(birth_very_preterm = if_else(weeks >= 28 & weeks <32, 1, 0)) |> 
   mutate(birth_moderately_preterm = if_else(weeks >= 32 & weeks <33, 1, 0)) |> 
   mutate(birth_late_preterm = if_else(weeks >= 34 & weeks <37, 1, 0)) |> 
   mutate(birth_term = if_else(weeks >= 37 & weeks <42, 1, 0)) |> 
-  mutate(birth_posterm = if_else(weeks >= 42, 1, 0))
+  mutate(birth_posterm = if_else(weeks >= 42, 1, 0)) 
 
 ### 8.  Fixed cohort Bias ----
 # N=834917
@@ -384,9 +412,14 @@ births <- births |>
 births <- births |> 
   filter(date_ends_week_gest <= date_last_week)
 
-# N=727290
+# N=713918
 nrow(births)
 summary(births)
+
+# COVID variable
+births <- births |> 
+  mutate(covid = if_else(date_ends_week_gest > as.Date("2020-03-01"), 1, 0)) |> 
+  relocate(covid, .before = birth_preterm)
 
 ### 7.  Save new births data ----
 glimpse(births)

@@ -194,5 +194,5 @@ cont_data |> filter( # municipio==mun &
 # Results ok
 
 ## Save results ----
-
+save(cont_data, file=paste0(data_out, "series_contamination_pm25_o3_kriging_idw", ".RData"))
 save(bw_data_expo, file=paste0(data_out, "series_exposition_pm25_o3_kriging_idw", ".RData"))

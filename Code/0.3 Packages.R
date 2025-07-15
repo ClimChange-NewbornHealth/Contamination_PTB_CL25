@@ -59,7 +59,9 @@ install_load(c("rio",
                "survival",
                "flexsurv",
                "survminer",
-               "ggsurvfit"
+               "ggsurvfit",
+               "DT",
+               "data.table"
                ))
 
 
