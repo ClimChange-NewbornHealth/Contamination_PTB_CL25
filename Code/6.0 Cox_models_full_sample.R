@@ -116,15 +116,17 @@ fit_logit_model <- function(dependent, predictor, data, conf.level = 0.95) {
   tbl <- broom::tidy(model_fit, conf.int = FALSE, exponentiate = FALSE)
   
   # 4) Parámetro z para el nivel de confianza deseado
-  z <- abs(stats::qnorm((1 - conf.level) / 2))
+  z <- qnorm(1 - (1 - 0.95)/2)
+  #z <- abs(stats::qnorm((1 - conf.level) / 2))
   
   # 5) Calcular OR y sus IC de Wald
   tbl <- tbl |> 
     mutate(
-      estimate = exp(estimate), 
-      ci.low = exp(estimate - z * std.error),
-      ci.high = exp(estimate + z * std.error)
-    )
+      or = exp(estimate), 
+      conf.low = exp(estimate - z * std.error),
+      conf.high = exp(estimate + z * std.error)
+    ) |> 
+    mutate(estimate = or)
   
   # 6) Reordenar y renombrar columnas
   results <- tbl |> 
@@ -167,7 +169,7 @@ results_cox <- rio::import(paste0("Output/", "Models/", "Cox_models_contaminatio
 
 ## Plots with Exposure Effects COX Models ---- 
 
-exp_vars <- str_subset(unique(exp_vars), "^o3.*(_10)$", negate = TRUE) # Test
+#exp_vars <- str_subset(unique(exp_vars), "^o3.*(_10)$", negate = TRUE) # Test moment
 
 results_filtered <- results_cox |>
   filter(term %in% c(exp_vars))
@@ -182,141 +184,135 @@ results_filtered <- results_filtered |>
 
 #exp_vars <- str_subset(unique(results_filtered$term), "_(10|iqr)$")
 
-plot_data <- results_filtered |>
-  filter(term %in% exp_vars) |>
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(patchwork)
+library(purrr)
+
+# 1) Prepara tus datos, SIN filtrar ninguno de los sufijos
+plot_data <- results_filtered %>%
+  filter(str_detect(term, "_krg_") | str_detect(term, "_idw_")) %>%
   mutate(
-    # Kriging vs IDW
-    method = case_when(
-      str_detect(term, "_krg_") ~ "Kriging",
-      str_detect(term, "_idw_") ~ "IDW"
-    ) |> factor(levels = c("Kriging", "IDW")),
-    # PM2.5 vs Ozone
-    pollutant = case_when(
-      str_detect(term, "^pm25") ~ "PM2.5",
-      str_detect(term, "^o3")   ~ "Ozone"
-    ),
-    # Ventana / trimestre
+    method = if_else(str_detect(term, "_krg_"), "Kriging", "IDW") %>%
+             factor(levels = c("Kriging","IDW")),
+    pollutant = if_else(str_detect(term, "^pm25"), "PM2.5", "Ozone") %>%
+                factor(levels = c("PM2.5","Ozone")),
     period = case_when(
-      str_detect(term, "_4")      ~ "4-day",
-      str_detect(term, "_30")      ~ "30-day",
-      str_detect(term, "_t1")     ~ "T1",
-      str_detect(term, "_t2")     ~ "T2",
-      str_detect(term, "_t3")     ~ "T3",
-      str_detect(term, "_full")    ~ "Full"
-    ) |> factor(levels = c("4-day","30-day","T1","T2","T3","Full")),
-    # Media vs IQR
-    is_iqr = str_detect(term, "_iqr"),
-    # Etiqueta Y y orden estricto
-    metric = paste0(period, if_else(is_iqr, "", "")) |>
-      factor(levels = c(
-        # medias
-        "4-day","30-day","T1","T2","T3","Full"
-        # IQR  
-        #"4-day IQR","30-day IQR","T1 IQR","T2 IQR","T3 IQR","Full IQR"
-      ))
+      str_detect(term, "_4($|_)")    ~ "4-day",
+      str_detect(term, "_30($|_)")   ~ "30-day",
+      str_detect(term, "_t1($|_)")   ~ "T1",
+      str_detect(term, "_t2($|_)")   ~ "T2",
+      str_detect(term, "_t3($|_)")   ~ "T3",
+      str_detect(term, "_full($|_)") ~ "Full"
+    ) %>% factor(levels = c("4-day","30-day","T1","T2","T3","Full")),
+    suffix = case_when(
+      str_detect(term, "_iqr$") ~ "IQR",
+      str_detect(term, "_10$")  ~ "X/10",
+      TRUE                      ~ "Raw"
+    ) %>% factor(levels = c("Raw","X/10","IQR")),
+    metric = if_else(
+      suffix == "Raw",
+      as.character(period),
+      paste0(period, " ", suffix)
+    ) %>% factor(levels = c(
+      # Raw
+      "4-day","30-day","T1","T2","T3","Full",
+      # X/10
+      "4-day X/10","30-day X/10","T1 X/10","T2 X/10","T3 X/10","Full X/10",
+      # IQR
+      "4-day IQR","30-day IQR","T1 IQR","T2 IQR","T3 IQR","Full IQR"
+    ))
   )
 
 outcomes <- c("birth_preterm", "lbw", "tlbw", "sga")
 
-make_cell <- function(df, method, is_iqr, outcome, x_limits) {
-  df_cell <- df %>% 
-    filter(method == method,
-           dependent_var == outcome,
-           is_iqr == is_iqr)
+# 2) Función para cada celda, con droplevels() para quedarnos sólo con las 6 filas necesarias
+make_cell <- function(data, meth, suff, out, x_lim, show_y) {
+  df_cell <- data %>%
+    filter(
+      method        == meth,
+      suffix        == suff,
+      dependent_var == out
+    ) %>%
+    droplevels()  # elimina los niveles de `metric` que no estén en df_cell
   
-  ggplot(df_cell, aes(x = estimate, y = period)) +
+  ggplot(df_cell, aes(x = estimate, y = metric)) +
     geom_vline(xintercept = 1, linetype = "dashed", color = "grey50") +
-    geom_errorbarh(aes(xmin = conf.low, xmax = conf.high),
-                   height = 0.2) +
-    geom_point(size = 2) +
-    scale_x_continuous(limits = x_limits) +
+    geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2) +
+    geom_point(size = 1) +
+    scale_x_continuous(limits = x_lim) +
     labs(
-      # solo el método en el subtítulo de la fila
-      subtitle = paste0(method, if_else(is_iqr, " IQR", " X/10")),
+      subtitle = paste0(meth, " ", suff),
       x        = "HR (95% CI)",
       y        = NULL
     ) +
-    theme_light() +
+    theme_light(base_size = 10) +
     theme(
       legend.position     = "none",
-      plot.subtitle       = element_text(face = "bold"),
+      plot.subtitle       = element_text(face = "bold", size = 10),
       panel.grid          = element_blank(),
-      axis.text.y         = element_text(size = 10)
+      axis.text.y         = if (show_y) element_text(size = 8) else element_blank(),
+      axis.ticks.y        = if (show_y) element_line() else element_blank(),
+      plot.margin         = margin(2, 2, 2, 2, "pt")
     )
 }
 
-# construye el panel para un data.frame de entrada
-make_panel <- function(df, x_limits) {
-  combos <- tribble(
-    ~method,   ~is_iqr,
-    "Kriging", FALSE,
-    "Kriging", TRUE,
-    "IDW",     FALSE,
-    "IDW",     TRUE
+# 3) Función para ensamblar todo en un solo wrap_plots()
+make_panel <- function(data, x_lim) {
+  combos <- expand.grid(
+    method = c("Kriging","IDW"),
+    suffix = c("Raw","X/10","IQR"),
+    stringsAsFactors = FALSE
   )
   
-  # 1) fila de títulos de columna
-  col_titles <- outcomes %>% 
-    map(~ ggplot() + 
-          labs(title = .x) +
-          theme_void() +
-          theme(
-            plot.title = element_text(face="bold", hjust=0.5)
-          )
-    )
-  title_row <- wrap_plots(col_titles, ncol = 4)
+  # 3.1) Títulos de columna
+  title_plots <- map(outcomes, ~
+    ggplot() +
+      labs(title = .x) +
+      theme_void() +
+      theme(plot.title = element_text(face = "bold", hjust = 0.5, size = 11))
+  )
   
-  # 2) para cada combo generar su fila de 4 gráficas
-  data_rows <- combos %>% 
-    pmap(function(method, is_iqr) {
-      cells <- outcomes %>% 
-        map(~ make_cell(df, method, is_iqr, .x, x_limits))
-      wrap_plots(cells, ncol = 4)
-    })
+  # 3.2) Celdas (fila × columna)
+  cell_plots <- vector("list", length(outcomes) * nrow(combos))
+  idx <- 1
+  for(i in seq_len(nrow(combos))) {
+    for(j in seq_along(outcomes)) {
+      cell_plots[[idx]] <- make_cell(
+        data   = data,
+        meth   = combos$method[i],
+        suff   = combos$suffix[i],
+        out    = outcomes[j],
+        x_lim  = x_lim,
+        show_y = (j == 1)    # sólo primera columna muestra eje Y
+      )
+      idx <- idx + 1
+    }
+  }
   
-  # 3) ensamblar todo
-  title_row / wrap_plots(data_rows, ncol = 1) +
-    plot_layout(heights = c(0.01, 1))
+  # 3.3) Combinar TODO en un solo wrap_plots()
+  wrap_plots(
+    plots   = c(title_plots, cell_plots),
+    ncol    = length(outcomes),
+    widths  = rep(1, length(outcomes)),
+    heights = c(0.1, rep(1, nrow(combos))),
+    align   = "hv"
+  )
 }
 
-# los outcomes que quieres en columnas
-outcomes <- c("birth_preterm", "lbw", "tlbw", "sga")
-
-# filtrar & mutar tu objeto original
-plot_data <- results_filtered %>%
-  filter(str_detect(term, "_(10|iqr)$")) %>%
-  mutate(
-    method    = case_when(
-      str_detect(term, "_krg_") ~ "Kriging",
-      str_detect(term, "_idw_") ~ "IDW"
-    ) %>% factor(levels = c("Kriging","IDW")),
-    pollutant = case_when(
-      str_detect(term, "^pm25") ~ "PM2.5",
-      str_detect(term, "^o3")   ~ "Ozone"
-    ),
-    period = case_when(
-      str_detect(term, "_4_")   ~ "4-day",
-      str_detect(term, "_30_")  ~ "30-day",
-      str_detect(term, "_t1")   ~ "T1",
-      str_detect(term, "_t2")   ~ "T2",
-      str_detect(term, "_t3")   ~ "T3",
-      str_detect(term, "_full") ~ "Full"
-    ) %>% factor(levels = c("4-day","30-day","T1","T2","T3","Full")),
-    is_iqr = str_detect(term, "_iqr")
-  )
-
-# Generar paneles
+# 4) Genera y muestra los paneles
 panel_pm25 <- plot_data %>%
   filter(pollutant == "PM2.5") %>%
-  make_panel(x_limits = c(0.5, 1.75)) 
+  make_panel(x_lim = c(0.75, 1.55))
 
 panel_o3 <- plot_data %>%
   filter(pollutant == "Ozone") %>%
-  make_panel(x_limits = c(0.5, 1.5)) 
+  make_panel(x_lim = c(0, 2))
 
 # Para visualizar
 panel_pm25
-ggsave("Output/Models/HR_Cox_panel_test.png",
+ggsave("Output/Models/HR_Cox_panel_PM25.png",
   #plot     = last_plot(),
   res      = 300,
   width    = 30,
@@ -325,10 +321,9 @@ ggsave("Output/Models/HR_Cox_panel_test.png",
   scaling  = 0.9,
   device   = ragg::agg_png
 )
-
 
 panel_o3
-ggsave("Output/Models/HR_Cox_panel_test2.png",
+ggsave("Output/Models/HR_Cox_panel_Ozone.png",
   #plot     = last_plot(),
   res      = 300,
   width    = 30,
@@ -338,3 +333,4 @@ ggsave("Output/Models/HR_Cox_panel_test2.png",
   device   = ragg::agg_png
 )
 
+writexl::write_xlsx(plot_data, path =  paste0("Output/", "Models/", "Cox_models_contamination_subset", ".xlsx"))
