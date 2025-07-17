@@ -99,23 +99,40 @@ fit_cox_model <- function(dependent, predictor, data) {
   rm(model_fit); gc()
 }
 
-fit_logit_model <- function(dependent, predictor, data) {
+fit_logit_model <- function(dependent, predictor, data, conf.level = 0.95) {
   
-  formula <- as.formula(paste(dependent, " ~ ", predictor, 
-                              "+ sex + age_group_mom + educ_group_mom + job_group_mom +",
-                              "age_group_dad + educ_group_dad + job_group_dad +",
-                              "factor(month_week1) + factor(year_week1) + factor(covid) + vulnerability"))
+  # 1) Construir fórmula
+  fml <- as.formula(
+    paste0(dependent, " ~ ", predictor,
+           " + sex + age_group_mom + educ_group_mom + job_group_mom +",
+           " age_group_dad + educ_group_dad + job_group_dad +",
+           " factor(month_week1) + factor(year_week1) + factor(covid) + vulnerability")
+  )
   
-  # Ajuste del modelo logístico
-  model_fit <- glm(formula, data = data, family = binomial(link = "logit"))
+  # 2) Ajustar modelo logístico en escala logit
+  model_fit <- glm(fml, data = data, family = binomial(link = "logit"))
   
-  # Extraer resultados con tidy
-  results <- broom::tidy(model_fit, exponentiate = TRUE, conf.int = TRUE, conf.level = 0.95) |>
-    select(term, estimate, std.error, statistic, p.value, conf.low, conf.high) |>
+  # 3) Extraer tabla básica (coeficientes en log-odds)
+  tbl <- broom::tidy(model_fit, conf.int = FALSE, exponentiate = FALSE)
+  
+  # 4) Parámetro z para el nivel de confianza deseado
+  z <- abs(stats::qnorm((1 - conf.level) / 2))
+  
+  # 5) Calcular OR y sus IC de Wald
+  tbl <- tbl |> 
+    mutate(
+      estimate = exp(estimate), 
+      ci.low = exp(estimate - z * std.error),
+      ci.high = exp(estimate + z * std.error)
+    )
+  
+  # 6) Reordenar y renombrar columnas
+  results <- tbl |> 
+    select(term, estimate, std.error, statistic, p.value, conf.low, conf.high) |> 
     mutate(dependent_var = dependent, predictor = predictor)
-  
+
   return(results)
-  
+
   rm(model_fit); gc()
 }
 
