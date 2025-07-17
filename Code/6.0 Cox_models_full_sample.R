@@ -54,7 +54,7 @@ exp_vars_models <- c(single_vars, grouped1, grouped10, grouped_iqr)
 
 #exp_vars_models <- exp_vars_models[!str_detect(exp_vars_models, "o3")]
 
-dependent_vars <- c("birth_preterm", # "lbw", "tlbw", "sga",
+dependent_vars <- c("birth_preterm", "lbw", "tlbw", "sga",
                     "birth_very_preterm", "birth_moderately_preterm", 
                     "birth_late_preterm") # , "birth_term", "birth_posterm"
 
@@ -138,10 +138,11 @@ fit_logit_model <- function(dependent, predictor, data, conf.level = 0.95) {
 
 ## Parallel models -----
 
-plan(multisession, workers = parallel::detectCores() - 1)
+plan(multisession, workers = parallel::detectCores() - 4)
 options(future.globals.maxSize = 1.5 * 1024^3)
 tic()
 results_list <- future_lapply(seq_len(nrow(combinations)), function(i) {
+  message("Iteración ", i, " en PID ", Sys.getpid())
   dep <- combinations$dependent[i]
   pred <- combinations$predictor[i]
   

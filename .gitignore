@@ -56,3 +56,5 @@ rsconnect/
 Data/
 Output/
 Old/
+
+.DS_Store
