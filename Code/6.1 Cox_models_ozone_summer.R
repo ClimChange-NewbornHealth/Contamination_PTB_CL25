@@ -1,4 +1,5 @@
-# Code 6: Survival models preliminar ----
+# Code 6.1: Survival models preliminar ----
+# Ozone in Summer 
 
 rm(list=ls())
 ## Settings ----
@@ -39,65 +40,70 @@ glimpse(exp_data)
 combinations <- expand.grid(
   dependent  = dependent_vars,
   predictor  = exp_vars,
+  adjustment = c("Adjusted", "Unadjusted"),
   stringsAsFactors = FALSE
 )
 combinations
 
 writexl::write_xlsx(combinations, path =  paste0("Output/", "Models/", "List_models_contamination_summer_ozone", ".xlsx"))
 
-## HR COX Models ---- 
-fit_cox_model <- function(dependent, predictor, data) {
+## HR COX/LOGIT Models ---- 
 
-  formula <- as.formula(paste("Surv(weeks, ", dependent, ") ~ ", predictor, 
-                              "+ sex + age_group_mom + educ_group_mom + job_group_mom +",
-                              "age_group_dad + educ_group_dad + job_group_dad +",
-                              "factor(year_week1) + factor(covid) + vulnerability")) # factor(month_week1) + 
-  
-  # Ajuste del modelo de Cox usando el argumento `data`
-  model_fit <- coxph(formula, data = data)
-  
-  # Extraer resultados con tidy
+fit_cox_model <- function(dependent, predictor, data, adjustment = "Adjusted") {
+
+  rhs <- if (identical(adjustment, "Adjusted")) {
+    paste(
+      predictor,
+      "+ sex + age_group_mom + educ_group_mom + job_group_mom +",
+      "age_group_dad + educ_group_dad + job_group_dad +",
+      "factor(month_week1) + factor(year_week1) + factor(covid) + vulnerability"
+    )
+  } else {
+    predictor
+  }
+
+  form <- as.formula(paste("Surv(weeks, ", dependent, ") ~ ", rhs))
+  model_fit <- coxph(form, data = data, ties = "efron")
+
   results <- broom::tidy(model_fit, exponentiate = TRUE, conf.int = TRUE, conf.level = 0.95) |>
-    select(term, estimate, std.error, statistic, p.value, conf.low, conf.high) |>
-    mutate(dependent_var = dependent, predictor = predictor)  # Añadir columnas de identificación
+    dplyr::select(term, estimate, std.error, statistic, p.value, conf.low, conf.high) |>
+    dplyr::mutate(dependent_var = dependent, predictor = predictor, adjustment = adjustment)
+
   return(results)
 
   rm(model_fit); gc()
 }
 
-fit_logit_model <- function(dependent, predictor, data, conf.level = 0.95) {
-  
-  # 1) Construir fórmula
-  fml <- as.formula(
-    paste0(dependent, " ~ ", predictor,
-           " + sex + age_group_mom + educ_group_mom + job_group_mom +",
-           " age_group_dad + educ_group_dad + job_group_dad +",
-           " factor(year_week1) + factor(covid) + vulnerability") # factor(month_week1) + 
-  )
-  
-  # 2) Ajustar modelo logístico en escala logit
+fit_logit_model <- function(dependent, predictor, data, conf.level = 0.95, adjustment = "Adjusted") {
+
+  rhs <- if (identical(adjustment, "Adjusted")) {
+    paste(
+      predictor,
+      " + sex + age_group_mom + educ_group_mom + job_group_mom +",
+      " age_group_dad + educ_group_dad + job_group_dad +",
+      " factor(month_week1) + factor(year_week1) + factor(covid) + vulnerability"
+    )
+  } else {
+    predictor
+  }
+
+  fml <- as.formula(paste0(dependent, " ~ ", rhs))
   model_fit <- glm(fml, data = data, family = binomial(link = "logit"))
-  
-  # 3) Extraer tabla básica (coeficientes en log-odds)
+
   tbl <- broom::tidy(model_fit, conf.int = FALSE, exponentiate = FALSE)
-  
-  # 4) Parámetro z para el nivel de confianza deseado
-  z <- qnorm(1 - (1 - 0.95)/2)
-  #z <- abs(stats::qnorm((1 - conf.level) / 2))
-  
-  # 5) Calcular OR y sus IC de Wald
-  tbl <- tbl |> 
-    mutate(
-      or = exp(estimate), 
-      conf.low = exp(estimate - z * std.error),
-      conf.high = exp(estimate + z * std.error)
-    ) |> 
-    mutate(estimate = or)
-  
-  # 6) Reordenar y renombrar columnas
-  results <- tbl |> 
-    select(term, estimate, std.error, statistic, p.value, conf.low, conf.high) |> 
-    mutate(dependent_var = dependent, predictor = predictor)
+  z   <- qnorm(1 - (1 - conf.level) / 2)
+
+  tbl <- tbl |>
+    dplyr::mutate(
+      or        = exp(estimate),
+      conf.low  = exp(estimate - z * std.error),
+      conf.high = exp(estimate + z * std.error),
+      estimate  = or
+    )
+
+  results <- tbl |>
+    dplyr::select(term, estimate, std.error, statistic, p.value, conf.low, conf.high) |>
+    dplyr::mutate(dependent_var = dependent, predictor = predictor, adjustment = adjustment)
 
   return(results)
 
@@ -113,25 +119,42 @@ results_list <- future_lapply(seq_len(nrow(combinations)), function(i) {
   message("Iteración ", i, " en PID ", Sys.getpid())
   dep <- combinations$dependent[i]
   pred <- combinations$predictor[i]
-  
+  adj  <- combinations$adjustment[i]   # <- NUEVO
+
   # Si el dependent es lbw, tlbw o sga → usa logit, si no → usa cox
   if (dep %in% c("lbw", "tlbw", "sga")) {
-    fit_logit_model(dep, pred, data = exp_data)
+    fit_logit_model(dep, pred, data = exp_data, adjustment = adj)  # <- pasa adj
   } else {
-    fit_cox_model(dep, pred, data = exp_data)
+    fit_cox_model(dep, pred, data = exp_data, adjustment = adj)    # <- pasa adj
   }
 })
-toc() 
+toc()
 plan(sequential)
+beepr::beep(8)
 
 # Save models results
-saveRDS(results_list, file = "Output/Models/Contamination_models_Ozone_summer.rds")
+saveRDS(results_list, file = "Output/Models/Contamination_models_ozone_summer.rds")
 
 results_cox <- bind_rows(results_list)
 
-writexl::write_xlsx(results_cox, path =  paste0("Output/", "Models/", "Cox_models_contamination_Ozone_summer", ".xlsx"))
+writexl::write_xlsx(results_cox, path =  paste0("Output/", "Models/", "Cox_models_contamination_ozone_summer", ".xlsx"))
 
 results_cox <- rio::import(paste0("Output/", "Models/", "Cox_models_contamination_Ozone_summer", ".xlsx"))
+
+## Tables with Exposure Effects COX Models ---- 
+
+tresults <- results_cox |> 
+  filter(term %in% exp_vars) |> 
+  dplyr::mutate(
+    dplyr::across(
+      where(is.numeric),
+      ~ formatC(., format = "f", digits = 4)
+    )
+  )
+
+glimpse(tresults)
+
+writexl::write_xlsx(tresults, path =  paste0("Output/", "Models/", "Table_cox_effects_contamination_ozone_summer", ".xlsx"))
 
 ## Plots with Exposure Effects COX Models ---- 
 

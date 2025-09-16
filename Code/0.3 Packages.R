@@ -61,7 +61,11 @@ install_load(c("rio",
                "survminer",
                "ggsurvfit",
                "DT",
-               "data.table"
+               "data.table",
+               "dlnm", 
+               "splines", 
+               "mgcv",
+               "tsModel"
                ))
 
 

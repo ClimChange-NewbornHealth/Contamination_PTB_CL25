@@ -1,4 +1,5 @@
-# Code 6: Survival models preliminar ----
+# Code 6.2: Survival models preliminar ----
+# PM in Winter
 
 rm(list=ls())
 ## Settings ----
@@ -11,48 +12,14 @@ data_out <- "Data/Output/"
 
 ## Data ---- 
 
-exp_data <- rio::import(paste0(data_out, "series_births_exposition_pm25_o3_kriging_idw", ".RData")) |> drop_na()
+exp_data <- rio::import(paste0(data_out, "series_births_exposition_pm25_o3_kriging_idw_ozone_summer", ".RData")) |> drop_na()
 summary(exp_data)
-glimpse(exp_data) # 713.918
+glimpse(exp_data) # 252498
 
 exp_vars <- exp_data |>
-  select(starts_with("pm25_krg"), starts_with("pm25_idw"),
-         starts_with("o3_krg"),   starts_with("o3_idw")) |>
+  select(starts_with("pm25_krg"),  starts_with("pm25_idw")) |>
+  select(contains("30"), contains("4")) |> 
   names()
-
-t1 <- grep("_t1$",  exp_vars, value = TRUE)
-groups1 <- lapply(t1, function(v) {
-  base <- sub("_t1$", "", v)
-  paste0(base, c("_t1","_t2","_t3"))
-})
-
-t1_10   <- grep("_t1_10$",  exp_vars, value = TRUE)
-groups10 <- lapply(t1_10, function(v) {
-  base <- sub("_t1_10$", "", v)
-  paste0(base, c("_t1_10","_t2_10","_t3_10"))
-})
-
-t1_iqr  <- grep("_t1_iqr$", exp_vars, value = TRUE)
-groups_iqr <- lapply(t1_iqr, function(v) {
-  base <- sub("_t1_iqr$", "", v)
-  paste0(base, c("_t1_iqr","_t2_iqr","_t3_iqr"))
-})
-
-# Vector con todas las variables de trimestres (10 + iqr)
-trimestre_vars <- c(unlist(groups1, use.names = FALSE),
-                    unlist(groups10, use.names = FALSE),
-                    unlist(groups_iqr, use.names = FALSE))
-
-# Variables de exposición “individuales”
-single_vars <- setdiff(exp_vars, trimestre_vars)
-
-grouped1   <- vapply(groups1,   paste, collapse = " + ", FUN.VALUE = "")
-grouped10   <- vapply(groups10,   paste, collapse = " + ", FUN.VALUE = "")
-grouped_iqr <- vapply(groups_iqr, paste, collapse = " + ", FUN.VALUE = "")
-
-exp_vars_models <- c(single_vars, grouped1, grouped10, grouped_iqr)
-
-#exp_vars_models <- exp_vars_models[!str_detect(exp_vars_models, "o3")]
 
 dependent_vars <- c("birth_preterm", "lbw", "tlbw", "sga",
                     "birth_very_preterm", "birth_moderately_preterm", 
@@ -64,19 +31,21 @@ control_vars <- c("weeks", "sex",
     "month_week1", "year_week1", "covid", "vulnerability")
 
 exp_data <- exp_data |> 
-  dplyr::select(all_of(c("id",  dependent_vars, control_vars, exp_vars, trimestre_vars 
+  dplyr::select(all_of(c("id",  dependent_vars, control_vars, exp_vars
   )))
+
+glimpse(exp_data)
 
 # All models execution
 combinations <- expand.grid(
   dependent  = dependent_vars,
-  predictor  = exp_vars_models,
+  predictor  = exp_vars,
   adjustment = c("Adjusted", "Unadjusted"),
   stringsAsFactors = FALSE
 )
 combinations
 
-writexl::write_xlsx(combinations, path =  paste0("Output/", "Models/", "List_models_contamination", ".xlsx"))
+writexl::write_xlsx(combinations, path =  paste0("Output/", "Models/", "List_models_contamination_winter_pm25", ".xlsx"))
 
 ## HR COX/LOGIT Models ---- 
 
@@ -164,28 +133,28 @@ plan(sequential)
 beepr::beep(8)
 
 # Save models results
-saveRDS(results_list, file = "Output/Models/Contamination_models.rds")
+saveRDS(results_list, file = "Output/Models/Contamination_models_pm25_winter.rds")
 
 results_cox <- bind_rows(results_list)
 
-writexl::write_xlsx(results_cox, path =  paste0("Output/", "Models/", "Cox_models_contamination", ".xlsx"))
+writexl::write_xlsx(results_cox, path =  paste0("Output/", "Models/", "Cox_models_contamination_pm25_winter", ".xlsx"))
 
-results_cox <- rio::import(paste0("Output/", "Models/", "Cox_models_contamination", ".xlsx"))
+results_cox <- rio::import(paste0("Output/", "Models/", "Cox_models_contamination_pm25_winter", ".xlsx"))
 
 ## Tables with Exposure Effects COX Models ---- 
 
 tresults <- results_cox |> 
-  filter(term %in% exp_vars_models) |> 
+  filter(term %in% exp_vars) |> 
   dplyr::mutate(
     dplyr::across(
       where(is.numeric),
-      ~ formatC(., format = "f", digits = 4, decimal.mark = ".")
+      ~ formatC(., format = "f", digits = 4)
     )
   )
 
 glimpse(tresults)
 
-writexl::write_xlsx(tresults, path =  paste0("Output/", "Models/", "Table_cox_effects_contamination", ".xlsx"))
+writexl::write_xlsx(tresults, path =  paste0("Output/", "Models/", "Table_cox_effects_contamination_pm25_winter", ".xlsx"))
 
 ## Plots with Exposure Effects COX Models ---- 
 
@@ -316,28 +285,12 @@ make_panel <- function(data, x_lim) {
 }
 
 # 4) Genera y muestra los paneles
-panel_pm25 <- plot_data %>%
-  filter(pollutant == "PM2.5") %>%
-  make_panel(x_lim = c(0.75, 1.55))
-
 panel_o3 <- plot_data %>%
   filter(pollutant == "Ozone") %>%
-  make_panel(x_lim = c(0, 2))
-
-# Para visualizar
-panel_pm25
-ggsave("Output/Models/HR_Cox_panel_PM25.png",
-  #plot     = last_plot(),
-  res      = 300,
-  width    = 30,
-  height   = 30,
-  units    = 'cm',
-  scaling  = 0.9,
-  device   = ragg::agg_png
-)
+  make_panel(x_lim = c(0.5, 1.5))
 
 panel_o3
-ggsave("Output/Models/HR_Cox_panel_Ozone.png",
+ggsave("Output/Models/HR_Cox_panel_Ozone_summer.png",
   #plot     = last_plot(),
   res      = 300,
   width    = 30,
@@ -347,4 +300,4 @@ ggsave("Output/Models/HR_Cox_panel_Ozone.png",
   device   = ragg::agg_png
 )
 
-writexl::write_xlsx(plot_data, path =  paste0("Output/", "Models/", "Cox_models_contamination_subset", ".xlsx"))
+writexl::write_xlsx(plot_data, path =  paste0("Output/", "Models/", "Cox_models_contamination_subset_Ozone_summer", ".xlsx"))

@@ -148,6 +148,35 @@ load_and_extract_df <- function(file_path) {
 }
 
 
+# Calculate contamination metrics (version 2: observerd metrics )
+
+calculate_cont_stats <- function(row, cont_data) {
+  # data.table objects
+  setDT(row)
+  setDT(cont_data)
+  
+  # Adjust dates
+  row_copy <- copy(row)
+  row_copy[, date_start_week := as.Date(date_start_week)]
+  row_copy[, date_end_week := as.Date(date_end_week)]
+  
+  # Filter
+  week_cont <- cont_data[date >= row_copy$date_start_week[1] & date < row_copy$date_end_week[1] & name_com == row_copy$name_com[1]]
+  
+  if (nrow(week_cont) == 0) {
+    return(data.table(row_copy, 
+                      pm25_week=NA_real_, 
+                      o3_week=NA_real_))
+  } else {
+    return(data.table(row_copy, 
+                      pm25_week = round(mean(as.numeric(week_cont$daily_pm25), na.rm = TRUE), 3),
+                      o3_week = round(mean(as.numeric(week_cont$daily_o3), na.rm = TRUE), 3)
+                      )
+                      )
+  }
+}
+
+
 # Optimal use power computation 
 options(future.globals.maxSize = 3000 * 1024^2)  
 plan(multisession, workers = detectCores() - 4) # Parallelization
