@@ -174,18 +174,47 @@ results_cox <- rio::import(paste0("Output/", "Models/", "Cox_models_contaminatio
 
 ## Tables with Exposure Effects COX Models ---- 
 
-tresults <- results_cox |> 
-  filter(term %in% exp_vars_models) |> 
-  dplyr::mutate(
-    dplyr::across(
-      where(is.numeric),
-      ~ formatC(., format = "f", digits = 4, decimal.mark = ".")
-    )
-  )
+tbl_export <- results_cox |>
+  filter(term %in% c(exp_vars_models, trimestre_vars)) |> 
+  mutate(across(where(is.numeric), ~ formatC(., format = "f", digits = 4, decimal.mark = "."))) |> 
+  filter(term %in% exp_vars) |>
+  mutate(
+      exposure = case_when(
+      grepl("full", term) ~ "Full",
+      grepl("t1", term)   ~ "Trimester 1",
+      grepl("t2", term)   ~ "Trimester 2",
+      grepl("t3", term)   ~ "Trimester 3",
+      grepl("30", term)   ~ "30 Days",
+      grepl("4", term)    ~ "4 Days",
+      TRUE ~ NA_character_
+    ),
+    unit = case_when(
+      grepl("iqr", term) ~ "IQR",
+      grepl("10", term)   ~ "10",
+      TRUE ~ "1"
+    ),
+    method = case_when(
+      grepl("krg", term) ~ "Kriging",
+      TRUE ~ "IDW"
+    ),
+    pollutant = if_else(grepl("^pm25", term), "PM2.5", "O3"),
+    hr = paste0(estimate, " (", conf.low, " - ", conf.high, ")")
+  ) |>
+  filter(unit != "10") |> 
+  mutate(
+    exposure = factor(exposure,
+                      levels = c("Full", "Trimester 1", "Trimester 2",
+                                 "Trimester 3", "30 Days", "4 Days"))
+  ) |>
+  mutate(
+    unit = factor(unit,
+                      levels = c("1", "IQR"))
+  ) |>
+  arrange(adjustment, dependent_var, pollutant, method, unit, exposure, term) |>
+  select(term, dependent_var, pollutant, method, unit, adjustment, hr)
 
-glimpse(tresults)
+writexl::write_xlsx(tbl_export, path =  paste0("Output/", "Models/", "Table_cox_effects_contamination", ".xlsx"))
 
-writexl::write_xlsx(tresults, path =  paste0("Output/", "Models/", "Table_cox_effects_contamination", ".xlsx"))
 
 ## Plots with Exposure Effects COX Models ---- 
 
@@ -205,12 +234,12 @@ results_filtered <- results_filtered |>
 #exp_vars <- str_subset(unique(results_filtered$term), "_(10|iqr)$")
 
 # 1) Prepara tus datos, SIN filtrar ninguno de los sufijos
-plot_data <- results_filtered %>%
-  filter(str_detect(term, "_krg_") | str_detect(term, "_idw_")) %>%
+plot_data <- results_filtered |>
+  filter(str_detect(term, "_krg_") | str_detect(term, "_idw_")) |>
   mutate(
-    method = if_else(str_detect(term, "_krg_"), "Kriging", "IDW") %>%
+    method = if_else(str_detect(term, "_krg_"), "Kriging", "IDW") |>
              factor(levels = c("Kriging","IDW")),
-    pollutant = if_else(str_detect(term, "^pm25"), "PM2.5", "Ozone") %>%
+    pollutant = if_else(str_detect(term, "^pm25"), "PM2.5", "Ozone") |>
                 factor(levels = c("PM2.5","Ozone")),
     period = case_when(
       str_detect(term, "_4($|_)")    ~ "4-day",
@@ -219,17 +248,17 @@ plot_data <- results_filtered %>%
       str_detect(term, "_t2($|_)")   ~ "T2",
       str_detect(term, "_t3($|_)")   ~ "T3",
       str_detect(term, "_full($|_)") ~ "Full"
-    ) %>% factor(levels = c("4-day","30-day","T1","T2","T3","Full")),
+    ) |> factor(levels = c("4-day","30-day","T1","T2","T3","Full")),
     suffix = case_when(
       str_detect(term, "_iqr$") ~ "IQR",
       str_detect(term, "_10$")  ~ "X/10",
       TRUE                      ~ "Raw"
-    ) %>% factor(levels = c("Raw","X/10","IQR")),
+    ) |> factor(levels = c("Raw","X/10","IQR")),
     metric = if_else(
       suffix == "Raw",
       as.character(period),
       paste0(period, " ", suffix)
-    ) %>% factor(levels = c(
+    ) |> factor(levels = c(
       # Raw
       "4-day","30-day","T1","T2","T3","Full",
       # X/10
@@ -243,12 +272,12 @@ outcomes <- c("birth_preterm", "lbw", "tlbw", "sga")
 
 # 2) Función para cada celda, con droplevels() para quedarnos sólo con las 6 filas necesarias
 make_cell <- function(data, meth, suff, out, x_lim, show_y) {
-  df_cell <- data %>%
+  df_cell <- data |>
     filter(
       method        == meth,
       suffix        == suff,
       dependent_var == out
-    ) %>%
+    ) |>
     droplevels()  # elimina los niveles de `metric` que no estén en df_cell
   
   ggplot(df_cell, aes(x = estimate, y = metric)) +
@@ -316,12 +345,12 @@ make_panel <- function(data, x_lim) {
 }
 
 # 4) Genera y muestra los paneles
-panel_pm25 <- plot_data %>%
-  filter(pollutant == "PM2.5") %>%
+panel_pm25 <- plot_data |>
+  filter(pollutant == "PM2.5") |>
   make_panel(x_lim = c(0.75, 1.55))
 
-panel_o3 <- plot_data %>%
-  filter(pollutant == "Ozone") %>%
+panel_o3 <- plot_data |>
+  filter(pollutant == "Ozone") |>
   make_panel(x_lim = c(0, 2))
 
 # Para visualizar

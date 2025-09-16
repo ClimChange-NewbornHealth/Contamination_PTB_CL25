@@ -101,7 +101,7 @@ bw_data_ozone <- bw_data_join |>
   mutate(
     last30_start = date_nac - days(29),
     last30_months = list(unique(month(seq(last30_start, date_nac, by = "1 day")))),
-    exposed_last30_summer = all(last30_months %in% c(11, 12, 1, 2, 3))
+    exposed_last30_summer = all(last30_months %in% c(12, 1, 2, 3))
   ) |>
   ungroup() |>
   filter(exposed_last30_summer) |>
@@ -128,3 +128,41 @@ bw_data_ozone <- bw_data_ozone |>
 glimpse(bw_data_ozone)
 
 save(bw_data_ozone, file=paste0(data_out, "series_births_exposition_pm25_o3_kriging_idw_ozone_summer", ".RData"))
+
+
+## Save Data PM25 (Winter) ----
+
+bw_data_pm <- bw_data_join |>
+  rowwise() |>
+  mutate(
+    last30_start = date_nac - days(29),
+    last30_months = list(unique(month(seq(last30_start, date_nac, by = "1 day")))),
+    exposed_last30_summer = all(last30_months %in% c(6, 7, 8, 9))
+  ) |>
+  ungroup() |>
+  filter(exposed_last30_summer) |>
+  select(-last30_start, -last30_months, -exposed_last30_summer) |> 
+  select(id:o3_idw_t3)
+
+glimpse(bw_data_pm)
+
+# exposure_vars/10
+bw_data_pm <- bw_data_pm |> 
+  mutate(across(all_of(exposure_vars), ~ .x / 10, .names = "{.col}_10")) 
+
+# exposure_vars/IQR(exposure_vars)
+iqr_vals <- bw_data_pm |>
+  summarise(across(all_of(exposure_vars), ~ IQR(.x, na.rm = TRUE))) |>
+  as.list()
+iqr_vals # Calculate IQR per variable 
+
+writexl::write_xlsx(iqr_vals |> data.frame(), paste0(data_out, "Data_IQR_ref_values_winter.xlsx"))
+
+bw_data_pm <- bw_data_pm |> 
+  mutate(across(all_of(exposure_vars), ~ .x / iqr_vals[[cur_column()]], .names = "{.col}_iqr"))
+
+glimpse(bw_data_pm)
+
+save(bw_data_pm, file=paste0(data_out, "series_births_exposition_pm25_o3_kriging_idw_pm25_winter", ".RData"))
+
+
