@@ -1,7 +1,7 @@
 ## Settings ----
 source("Code/0.1 Settings.R")
-source("Code/0.2 Functions.R")
-source("Code/0.3 Packages.R")
+source("Code/0.2 Packages.R")
+source("Code/0.3 Functions.R")
 
 # Data path 
 data_inp <- "Data/Input/"
