@@ -65,7 +65,8 @@ install_load(c("rio",
                "dlnm", 
                "splines", 
                "mgcv",
-               "tsModel"
+               "tsModel",
+               "AF"
                ))
 
 
