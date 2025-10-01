@@ -100,9 +100,9 @@ fit_cox_model <- function(dependent, predictor, data, adjustment = "Adjusted") {
     dplyr::select(term, estimate, std.error, statistic, p.value, conf.low, conf.high) |>
     dplyr::mutate(dependent_var = dependent, predictor = predictor, adjustment = adjustment)
 
-  return(results)
-
   rm(model_fit); gc()
+  
+  return(results)
 }
 
 fit_logit_model <- function(dependent, predictor, data, conf.level = 0.95, adjustment = "Adjusted") {
@@ -136,9 +136,9 @@ fit_logit_model <- function(dependent, predictor, data, conf.level = 0.95, adjus
     dplyr::select(term, estimate, std.error, statistic, p.value, conf.low, conf.high) |>
     dplyr::mutate(dependent_var = dependent, predictor = predictor, adjustment = adjustment)
 
-  return(results)
-
   rm(model_fit); gc()
+
+  return(results)
 }
 
 ## Parallel models -----

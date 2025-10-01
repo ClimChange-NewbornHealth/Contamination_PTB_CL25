@@ -58,6 +58,13 @@ plot_data <- bind_rows(results_cox, results_cox_pm, results_cox_o3)  |>
 
 ## Plot effects paper PTB ----
 
+rect_data <- data.frame(
+  xmin = c(0.5, 4.5),
+  xmax = c(1.5, 5.5),
+  ymin = -Inf,
+  ymax = Inf
+)
+
 g1 <- plot_data |> 
   filter(method == "Kriging") |> 
   filter(group %in% c("A*'.'~Overall~-~PM[2.5]", "B*'.'~Overall~-~O[3]")) |> 
@@ -73,7 +80,17 @@ g1 <- plot_data |>
               ) +
     scale_color_manual(values = c("Unadjusted" = "grey50", "Adjusted" = "black")) +
     scale_shape_manual(values = c("Unadjusted" = 16, "Adjusted" = 15)) +
-    scale_y_continuous(limits = c(0.7, 1.3), n.breaks = 6) +
+    #geom_vline(xintercept = 1.5, color = "gray80") +   
+    #geom_vline(xintercept = 4.5, color = "gray80") +   
+    #geom_vline(xintercept = 5.5, color = "gray80") +   
+    geom_rect(data = rect_data,
+            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+            inherit.aes = FALSE, fill = "grey95", alpha = 0.5) + 
+    geom_rect(aes(ymin = -Inf, ymax = Inf, xmin = 5.5, xmax = 6.5),
+              inherit.aes = FALSE, 
+              fill = "white", alpha = 0.0) +
+    scale_y_continuous(limits = c(0.7, 1.3), n.breaks = 6, labels = label_number(decimal.mark = ".")) +
+    scale_x_discrete(expand = c(0, 0)) + 
     labs(
       y        = "HR (95% CI)",
       x        = NULL
@@ -92,7 +109,8 @@ g1 <- plot_data |>
       axis.text.y         = element_text(size = 10),
       axis.text.x         = element_text(size = 10),
       axis.ticks.y        = element_line(),
-      plot.margin         = margin(2, 2, 2, 2, "pt")
+      plot.margin         = margin(2, 2, 2, 2, "pt"),
+      panel.spacing = unit(0, "lines")
     )
 
 g1
@@ -112,7 +130,14 @@ g2 <- plot_data |>
               ) +
     scale_color_manual(values = c("Unadjusted" = "grey50", "Adjusted" = "black")) +
     scale_shape_manual(values = c("Unadjusted" = 16, "Adjusted" = 15)) +
-    scale_y_continuous(limits = c(0.7, 1.3), n.breaks = 6) +
+    geom_rect(aes(ymin = -Inf, ymax = Inf, xmin = 0.5, xmax = 1.5),
+              inherit.aes = FALSE, 
+              fill = "grey95", alpha = 0.15) +
+    geom_rect(aes(ymin = -Inf, ymax = Inf, xmin = 1.5, xmax = 2.5),
+              inherit.aes = FALSE, 
+              fill = "white", alpha = 0.00) +
+    scale_y_continuous(limits = c(0.7, 1.3), n.breaks = 6, labels = label_number(decimal.mark = ".")) +
+    scale_x_discrete(expand = c(0, 0)) + 
     labs(
       y        = "HR (95% CI)",
       x        = NULL
@@ -141,13 +166,32 @@ ggarrange(g1, g2, nrow = 2, common.legend = TRUE)
 ggsave("Output/Models/HR_PTB_COX_panel.png",
   #plot     = last_plot(),
   res      = 300,
-  width    = 22.5,
+  width    = 25,
   height   = 17,
   units    = 'cm',
   scaling  = 0.9,
   device   = ragg::agg_png
 )
 
+ggsave("Output/Models/HR_PTB_COX_panel_OV.png",
+  plot     = g1,
+  res      = 300,
+  width    = 25,
+  height   = 10,
+  units    = 'cm',
+  scaling  = 0.9,
+  device   = ragg::agg_png
+)
+
+ggsave("Output/Models/HR_PTB_COX_panel_HE.png",
+  plot     = g2,
+  res      = 300,
+  width    = 25,
+  height   = 10,
+  units    = 'cm',
+  scaling  = 0.9,
+  device   = ragg::agg_png
+)
 
 ## Plot effects paper other outcomes ----
 
@@ -168,7 +212,14 @@ for (dv in dep_vars) {
                position = position_dodge2(width = 0.3, preserve = "single")) +
     scale_color_manual(values = c("Unadjusted" = "grey50", "Adjusted" = "black")) +
     scale_shape_manual(values = c("Unadjusted" = 16, "Adjusted" = 15)) +
-    scale_y_continuous(limits = c(0.5, 1.5), n.breaks = 6) +
+    geom_rect(data = rect_data,
+            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+            inherit.aes = FALSE, fill = "grey95", alpha = 0.5) + 
+    geom_rect(aes(ymin = -Inf, ymax = Inf, xmin = 5.5, xmax = 6.5),
+              inherit.aes = FALSE, 
+              fill = "white", alpha = 0.0) +
+    scale_y_continuous(limits = c(0.7, 1.3), n.breaks = 6, labels = label_number(decimal.mark = ".")) +
+    scale_x_discrete(expand = c(0, 0)) + 
     labs(y = "HR (95% CI)", x = NULL) +
     facet_wrap(~group, nrow = 1, scales = "free_x", labeller = label_parsed) +
     theme_light(base_size = 10) +
@@ -198,7 +249,14 @@ for (dv in dep_vars) {
                position = position_dodge2(width = 0.15, preserve = "single")) +
     scale_color_manual(values = c("Unadjusted" = "grey50", "Adjusted" = "black")) +
     scale_shape_manual(values = c("Unadjusted" = 16, "Adjusted" = 15)) +
+    geom_rect(aes(ymin = -Inf, ymax = Inf, xmin = 0.5, xmax = 1.5),
+              inherit.aes = FALSE, 
+              fill = "grey95", alpha = 0.15) +
+    geom_rect(aes(ymin = -Inf, ymax = Inf, xmin = 1.5, xmax = 2.5),
+              inherit.aes = FALSE, 
+              fill = "white", alpha = 0.00) +
     scale_y_continuous(limits = c(0.5, 1.5), n.breaks = 6) +
+    scale_x_discrete(expand = c(0, 0)) + 
     labs(y = "HR (95% CI)", x = NULL) +
     facet_wrap(~group, nrow = 1, scales = "free_x", labeller = label_parsed) +
     theme_light(base_size = 10) +

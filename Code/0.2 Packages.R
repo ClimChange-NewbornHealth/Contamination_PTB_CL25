@@ -66,7 +66,9 @@ install_load(c("rio",
                "splines", 
                "mgcv",
                "tsModel",
-               "AF"
+               "AF",
+               "graphPAF",
+               "scales"
                ))
 
 
