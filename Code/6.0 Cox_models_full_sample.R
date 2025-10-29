@@ -94,7 +94,7 @@ fit_cox_model <- function(dependent, predictor, data, adjustment = "Adjusted") {
   }
 
   form <- as.formula(paste("Surv(weeks, ", dependent, ") ~ ", rhs))
-  model_fit <- coxph(form, data = data, ties = "efron")
+  model_fit <- coxph(form, data = data, ties = "efron", cluster = id)
 
   results <- broom::tidy(model_fit, exponentiate = TRUE, conf.int = TRUE, conf.level = 0.95) |>
     dplyr::select(term, estimate, std.error, statistic, p.value, conf.low, conf.high) |>

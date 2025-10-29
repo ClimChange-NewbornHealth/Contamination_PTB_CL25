@@ -694,7 +694,6 @@ plot_pollutant_map_o3 <- function(data, var, title, season_name) {
     )
 }
 
-
 pm25_map_ov <- plot_pollutant_map_pm25(data = cont_map, var = "pm25_krg", title = expression("A. PM"["2.5"]*" - Overall"),  season_name = "Overall") + 
    scale_fill_gradientn(
       colours = c(
